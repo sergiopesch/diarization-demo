@@ -41,9 +41,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 model: 'default',          // or 'video', 'phone_call', 'latest_long'
             },
         };
-
         // 4. Call the Speech-to-Text API
-        const [response] = await client.recognize(request);
+        const response = await client.recognize({
+            audio: {
+                content: audioContent,
+            },
+            config: {
+                encoding: "WEBM_OPUS" as const,
+                sampleRateHertz: 48000,
+                languageCode: 'en-US',
+                enableAutomaticPunctuation: true,
+                enableWordTimeOffsets: true,
+                diarizationConfig: {
+                    enableSpeakerDiarization: true,
+                    minSpeakerCount: 2,
+                    maxSpeakerCount: 2
+                },
+                model: 'default',
+            },
+        }).then(([result]) => result);
 
         // 5. Extract words & speaker tags
         //    The API returns an array of `results`,
