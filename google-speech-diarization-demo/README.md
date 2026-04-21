@@ -74,6 +74,7 @@ npm run dev
 - `npm run test`: Vitest unit tests
 - `npm run typecheck`: Next route type generation plus TypeScript validation
 - `npm run build`: production build
+- `npm run audit`: dependency audit at `high` severity or above
 - `npm run verify`: canonical local validation flow
 
 Recommended local workflow:
