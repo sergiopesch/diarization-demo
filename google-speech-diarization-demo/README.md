@@ -50,9 +50,11 @@ npm run dev
 ## CI
 
 GitHub Actions runs lint, typecheck, and production build validation for pull requests and pushes to `master` and `codex/*` branches.
+Dependabot is configured to keep npm dependencies and GitHub Actions versions moving on a weekly cadence.
 
 ## Notes
 
 - The demo currently requests diarization for two speakers.
 - The API handler reads the final recognition result for speaker-tagged words, which matches Google Cloud's diarization behavior for non-streaming requests.
 - Browser support depends on `MediaRecorder` support for `audio/webm`.
+- Large uploads are rejected so the demo stays within a simple synchronous transcription path.

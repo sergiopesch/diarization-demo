@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SpeechClient, protos } from "@google-cloud/speech";
 
+const MAX_AUDIO_CONTENT_LENGTH = 10 * 1024 * 1024;
+
 export async function POST(req: NextRequest) {
     try {
         const { audioContent } = await req.json();
         if (!audioContent) {
             return NextResponse.json({ error: "No audioContent provided" }, { status: 400 });
+        }
+        if (typeof audioContent !== "string") {
+            return NextResponse.json({ error: "audioContent must be a base64 string" }, { status: 400 });
+        }
+        if (audioContent.length > MAX_AUDIO_CONTENT_LENGTH) {
+            return NextResponse.json(
+                { error: "Audio payload is too large for synchronous transcription" },
+                { status: 413 }
+            );
         }
 
         const rawCredentials = process.env.GOOGLE_CLOUD_CREDENTIALS;

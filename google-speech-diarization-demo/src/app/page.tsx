@@ -45,6 +45,10 @@ export default function Home() {
       setTranscription([]);
       chunksRef.current = [];
 
+      if (typeof MediaRecorder === "undefined") {
+        throw new Error("This browser does not support audio recording.");
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
@@ -71,6 +75,9 @@ export default function Home() {
       mediaRecorder.onstop = async () => {
         try {
           stopStream();
+          if (chunksRef.current.length === 0) {
+            throw new Error("No audio was captured. Please try again.");
+          }
           const blob = new Blob(chunksRef.current, { type: mimeType });
           chunksRef.current = [];
           setSubmitting(true);
@@ -107,6 +114,9 @@ export default function Home() {
   };
 
   const stopRecording = () => {
+    if (mediaRecorderRef.current?.state !== "recording") {
+      return;
+    }
     setRecording(false);
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
