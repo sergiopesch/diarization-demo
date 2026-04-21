@@ -1,64 +1,112 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function Home() {
   const [recording, setRecording] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [transcription, setTranscription] = useState<
     { word: string; speaker: number }[]
   >([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  const stopStream = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
 
   // START RECORDING
   const startRecording = async () => {
-    setRecording(true);
-    setTranscription([]);
-
-    // Request microphone access
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: "audio/webm; codecs=opus",
-    });
-    mediaRecorderRef.current = mediaRecorder;
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        chunksRef.current.push(event.data);
-      }
-    };
-
-    // On STOP, send audio to /api/transcribe
-    mediaRecorder.onstop = async () => {
-      const blob = new Blob(chunksRef.current, { type: "audio/webm; codecs=opus" });
+    try {
+      setError(null);
+      setTranscription([]);
       chunksRef.current = [];
 
-      // Convert Blob -> base64
-      const base64Audio = await blobToBase64(blob);
+      // Request microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
-      // Call our serverless API
-      const resp = await fetch("/api/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audioContent: base64Audio }),
-      });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm; codecs=opus")
+        ? "audio/webm; codecs=opus"
+        : "audio/webm";
 
-      const data = await resp.json();
-      if (data.transcriptionData) {
-        setTranscription(data.transcriptionData);
-      } else {
-        console.error(data.error || "No transcription data");
-      }
-    };
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
 
-    mediaRecorder.start();
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onerror = () => {
+        setError("Recording failed. Please try again.");
+        setRecording(false);
+        setSubmitting(false);
+        stopStream();
+      };
+
+      // On STOP, send audio to /api/transcribe
+      mediaRecorder.onstop = async () => {
+        try {
+          stopStream();
+          const blob = new Blob(chunksRef.current, { type: mimeType });
+          chunksRef.current = [];
+          setSubmitting(true);
+
+          // Convert Blob -> base64
+          const base64Audio = await blobToBase64(blob);
+
+          // Call our serverless API
+          const resp = await fetch("/api/transcribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ audioContent: base64Audio }),
+          });
+          const data = await resp.json();
+
+          if (!resp.ok) {
+            throw new Error(data.error || "Transcription failed");
+          }
+
+          setTranscription(data.transcriptionData ?? []);
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : "Transcription failed"
+          );
+        } finally {
+          setSubmitting(false);
+        }
+      };
+
+      mediaRecorder.start();
+      setRecording(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Microphone access failed"
+      );
+      setRecording(false);
+      stopStream();
+    }
   };
 
   // STOP RECORDING
   const stopRecording = () => {
     setRecording(false);
     mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
   };
 
   // HELPER: Convert Blob to base64
@@ -193,6 +241,7 @@ export default function Home() {
         {!recording ? (
           <button
             onClick={startRecording}
+            disabled={submitting}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
           >
             Start Recording
@@ -205,6 +254,12 @@ export default function Home() {
             Stop Recording
           </button>
         )}
+
+        {submitting && (
+          <p className="text-sm text-gray-600">Transcribing audio...</p>
+        )}
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
         {transcription.length > 0 && (
           <div className="mt-4 p-4 bg-white rounded shadow w-full max-w-xl">
