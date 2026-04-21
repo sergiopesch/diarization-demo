@@ -49,6 +49,7 @@ npm run dev
 - `npm run lint`
 - `npm run typecheck`
 - `npm run test`
+- `npm run verify`
 
 ## CI
 
@@ -62,3 +63,4 @@ Dependabot is configured to keep npm dependencies and GitHub Actions versions mo
 - Browser support depends on `MediaRecorder` support for `audio/webm`.
 - Large uploads are rejected so the demo stays within a simple synchronous transcription path.
 - The transcription route is pinned to the Node.js runtime so the Google Cloud client does not end up on an Edge deployment target.
+- `next build` and `next typegen` both write under `.next`, so use `npm run verify` or otherwise run Next-based checks sequentially in the same checkout.
