@@ -1,15 +1,17 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+
+type TranscriptWord = {
+  word: string;
+  speaker: number;
+};
 
 export default function Home() {
   const [recording, setRecording] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [transcription, setTranscription] = useState<
-    { word: string; speaker: number }[]
-  >([]);
+  const [transcription, setTranscription] = useState<TranscriptWord[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -25,14 +27,24 @@ export default function Home() {
     streamRef.current = null;
   };
 
-  // START RECORDING
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = (reader.result as string).split(",")[1];
+        resolve(base64String ?? "");
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const startRecording = async () => {
     try {
       setError(null);
       setTranscription([]);
       chunksRef.current = [];
 
-      // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
@@ -56,7 +68,6 @@ export default function Home() {
         stopStream();
       };
 
-      // On STOP, send audio to /api/transcribe
       mediaRecorder.onstop = async () => {
         try {
           stopStream();
@@ -64,10 +75,7 @@ export default function Home() {
           chunksRef.current = [];
           setSubmitting(true);
 
-          // Convert Blob -> base64
           const base64Audio = await blobToBase64(blob);
-
-          // Call our serverless API
           const resp = await fetch("/api/transcribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -92,191 +100,150 @@ export default function Home() {
       mediaRecorder.start();
       setRecording(true);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Microphone access failed"
-      );
+      setError(err instanceof Error ? err.message : "Microphone access failed");
       setRecording(false);
       stopStream();
     }
   };
 
-  // STOP RECORDING
   const stopRecording = () => {
     setRecording(false);
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
   };
 
-  // HELPER: Convert Blob to base64
-  const blobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = (reader.result as string).split(",")[1];
-        resolve(base64String ?? "");
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
-
-  // TAILWIND UTILITY: color-coded by speaker
   const colorForSpeaker = (speaker: number): string => {
     switch (speaker) {
       case 1:
-        return "#1F75FE"; // Blue
+        return "#1F75FE";
       case 2:
-        return "#FF5349"; // Red
+        return "#FF5349";
       case 3:
-        return "#FFA500"; // Orange
+        return "#FFA500";
       default:
-        return "#2E8B57"; // Greenish
+        return "#2E8B57";
     }
   };
 
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      {/* ---- START: Your existing design code ---- */}
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
+    <main className="min-h-screen bg-gray-50 px-6 py-10 text-gray-900 sm:px-10">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
+        <section className="rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-5">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-blue-600">
+                Browser Audio Demo
+              </p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+                Google Speech Diarization
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600 sm:text-base">
+                Record a short conversation, send it to Google Cloud
+                Speech-to-Text, and inspect the returned transcript segmented by
+                detected speaker.
+              </p>
+            </div>
 
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+            <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+              <span className="rounded-full bg-gray-100 px-3 py-1">
+                WebM / Opus upload
+              </span>
+              <span className="rounded-full bg-gray-100 px-3 py-1">
+                Two-speaker diarization
+              </span>
+              <span className="rounded-full bg-gray-100 px-3 py-1">
+                Google Cloud Speech API
+              </span>
+            </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-      {/* ---- END: Your existing design code ---- */}
-
-      {/* ---- Our new Record/Stop + Transcript display ---- */}
-      <div className="row-start-2 flex flex-col gap-4 items-center sm:items-start">
-        {!recording ? (
-          <button
-            onClick={startRecording}
-            disabled={submitting}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-          >
-            Start Recording
-          </button>
-        ) : (
-          <button
-            onClick={stopRecording}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Stop Recording
-          </button>
-        )}
-
-        {submitting && (
-          <p className="text-sm text-gray-600">Transcribing audio...</p>
-        )}
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        {transcription.length > 0 && (
-          <div className="mt-4 p-4 bg-white rounded shadow w-full max-w-xl">
-            <h2 className="text-lg font-semibold mb-2">Diarized Transcript</h2>
-            <div className="flex flex-wrap gap-1 text-sm">
-              {transcription.map((item, index) => (
-                <span
-                  key={index}
-                  style={{ color: colorForSpeaker(item.speaker) }}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {!recording ? (
+                <button
+                  onClick={startRecording}
+                  disabled={submitting}
+                  className="rounded-full bg-green-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
                 >
-                  {item.word}{" "}
+                  Start Recording
+                </button>
+              ) : (
+                <button
+                  onClick={stopRecording}
+                  className="rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700"
+                >
+                  Stop Recording
+                </button>
+              )}
+
+              <p className="text-sm text-gray-500">
+                {recording
+                  ? "Recording in progress."
+                  : submitting
+                    ? "Uploading and transcribing."
+                    : "Ready to capture microphone input."}
+              </p>
+            </div>
+
+            {error && (
+              <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[1.1fr_1.9fr]">
+          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">How To Use It</h2>
+            <ol className="mt-4 space-y-3 text-sm leading-6 text-gray-600">
+              <li>1. Allow microphone access when the browser prompts you.</li>
+              <li>2. Record a short conversation with two speakers.</li>
+              <li>3. Stop recording and wait for the transcript to return.</li>
+              <li>4. Review the output colors to compare speaker assignments.</li>
+            </ol>
+          </div>
+
+          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Diarized Transcript</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Each word is colored by the speaker tag returned from the API.
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-3 text-xs text-gray-500">
+                <span className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-[#1F75FE]" />
+                  Speaker 1
                 </span>
-              ))}
+                <span className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-[#FF5349]" />
+                  Speaker 2
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 min-h-40 rounded-2xl bg-gray-50 p-4">
+              {transcription.length > 0 ? (
+                <div className="flex flex-wrap gap-1 text-sm leading-7">
+                  {transcription.map((item, index) => (
+                    <span
+                      key={index}
+                      style={{ color: colorForSpeaker(item.speaker) }}
+                    >
+                      {item.word}{" "}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  No transcript yet. Record audio to generate speaker-labeled
+                  output.
+                </p>
+              )}
             </div>
           </div>
-        )}
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
