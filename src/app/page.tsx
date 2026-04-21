@@ -7,6 +7,17 @@ type TranscriptWord = {
   speaker: number;
 };
 
+const speakerTone = (speaker: number): string => {
+  switch (speaker) {
+    case 1:
+      return "var(--speaker-one)";
+    case 2:
+      return "var(--speaker-two)";
+    default:
+      return "var(--speaker-other)";
+  }
+};
+
 export default function Home() {
   const [recording, setRecording] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -75,9 +86,11 @@ export default function Home() {
       mediaRecorder.onstop = async () => {
         try {
           stopStream();
+
           if (chunksRef.current.length === 0) {
             throw new Error("No audio was captured. Please try again.");
           }
+
           const blob = new Blob(chunksRef.current, { type: mimeType });
           chunksRef.current = [];
           setSubmitting(true);
@@ -117,138 +130,252 @@ export default function Home() {
     if (mediaRecorderRef.current?.state !== "recording") {
       return;
     }
+
     setRecording(false);
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
   };
 
-  const colorForSpeaker = (speaker: number): string => {
-    switch (speaker) {
-      case 1:
-        return "#1F75FE";
-      case 2:
-        return "#FF5349";
-      case 3:
-        return "#FFA500";
-      default:
-        return "#2E8B57";
-    }
-  };
-
   return (
-    <main className="min-h-screen bg-gray-50 px-6 py-10 text-gray-900 sm:px-10">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
-        <section className="rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
-          <div className="flex flex-col gap-5">
+    <main className="min-h-screen px-5 py-6 text-[var(--app-text)] sm:px-8 sm:py-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <header className="grid gap-4 border border-[var(--app-border)] bg-[var(--app-panel)] p-4 backdrop-blur md:grid-cols-[1.45fr_0.85fr] md:p-6">
+          <div className="flex flex-col gap-6">
             <div>
-              <p className="text-sm font-medium uppercase tracking-[0.2em] text-blue-600">
-                Browser Audio Demo
+              <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.45em] text-[var(--app-faint)]">
+                Codex Inspired Interface / Voice Diarization
               </p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                Google Speech Diarization
+              <h1 className="mt-5 max-w-4xl text-4xl font-medium tracking-[-0.06em] text-white sm:text-6xl">
+                Minimal voice analysis in a black-and-white operator shell.
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600 sm:text-base">
-                Record a short conversation, send it to Google Cloud
-                Speech-to-Text, and inspect the returned transcript segmented by
-                detected speaker.
+              <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--app-muted)] sm:text-base">
+                Capture a short exchange, send it through Google Cloud Speech,
+                then inspect the diarized transcript in a stripped-down
+                monochrome surface built to feel closer to a terminal than a
+                marketing page.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3 text-sm text-gray-600">
-              <span className="rounded-full bg-gray-100 px-3 py-1">
-                WebM / Opus upload
-              </span>
-              <span className="rounded-full bg-gray-100 px-3 py-1">
-                Two-speaker diarization
-              </span>
-              <span className="rounded-full bg-gray-100 px-3 py-1">
-                Google Cloud Speech API
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {!recording ? (
-                <button
-                  onClick={startRecording}
-                  disabled={submitting}
-                  className="rounded-full bg-green-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-                >
-                  Start Recording
-                </button>
-              ) : (
-                <button
-                  onClick={stopRecording}
-                  className="rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700"
-                >
-                  Stop Recording
-                </button>
-              )}
-
-              <p className="text-sm text-gray-500">
-                {recording
-                  ? "Recording in progress."
-                  : submitting
-                    ? "Uploading and transcribing."
-                    : "Ready to capture microphone input."}
-              </p>
-            </div>
-
-            {error && (
-              <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </p>
-            )}
-          </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[1.1fr_1.9fr]">
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">How To Use It</h2>
-            <ol className="mt-4 space-y-3 text-sm leading-6 text-gray-600">
-              <li>1. Allow microphone access when the browser prompts you.</li>
-              <li>2. Record a short conversation with two speakers.</li>
-              <li>3. Stop recording and wait for the transcript to return.</li>
-              <li>4. Review the output colors to compare speaker assignments.</li>
-            </ol>
-          </div>
-
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold">Diarized Transcript</h2>
-                <p className="mt-1 text-sm text-gray-500">
-                  Each word is colored by the speaker tag returned from the API.
+            <div className="grid gap-px border border-[var(--app-border)] bg-[var(--app-border)] sm:grid-cols-3">
+              <div className="bg-black px-4 py-4">
+                <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
+                  Input
+                </p>
+                <p className="mt-2 text-sm text-[var(--app-text)]">
+                  Browser microphone / WebM Opus
                 </p>
               </div>
-              <div className="flex flex-wrap justify-end gap-3 text-xs text-gray-500">
-                <span className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-[#1F75FE]" />
-                  Speaker 1
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-[#FF5349]" />
-                  Speaker 2
-                </span>
+              <div className="bg-black px-4 py-4">
+                <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
+                  Mode
+                </p>
+                <p className="mt-2 text-sm text-[var(--app-text)]">
+                  Two-speaker diarization / sync path
+                </p>
+              </div>
+              <div className="bg-black px-4 py-4">
+                <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
+                  Engine
+                </p>
+                <p className="mt-2 text-sm text-[var(--app-text)]">
+                  Google Cloud Speech-to-Text
+                </p>
               </div>
             </div>
+          </div>
 
-            <div className="mt-5 min-h-40 rounded-2xl bg-gray-50 p-4">
-              {transcription.length > 0 ? (
-                <div className="flex flex-wrap gap-1 text-sm leading-7">
-                  {transcription.map((item, index) => (
-                    <span
-                      key={index}
-                      style={{ color: colorForSpeaker(item.speaker) }}
-                    >
-                      {item.word}{" "}
-                    </span>
-                  ))}
+          <div className="grid gap-px border border-[var(--app-border)] bg-[var(--app-border)]">
+            <div className="bg-black p-4">
+              <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
+                Session Control
+              </p>
+
+              <div className="mt-5 flex flex-col gap-4">
+                {!recording ? (
+                  <button
+                    onClick={startRecording}
+                    disabled={submitting}
+                    className="min-w-44 border border-[var(--app-border-strong)] bg-white px-4 py-3 font-[family-name:var(--font-geist-mono)] text-xs uppercase tracking-[0.28em] text-black transition hover:bg-[#d9d9d9] disabled:cursor-not-allowed disabled:border-[var(--app-border)] disabled:bg-[var(--app-panel-strong)] disabled:text-[var(--app-faint)]"
+                  >
+                    Start Recording
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopRecording}
+                    className="min-w-44 border border-white bg-black px-4 py-3 font-[family-name:var(--font-geist-mono)] text-xs uppercase tracking-[0.28em] text-white transition hover:bg-[var(--app-panel-strong)]"
+                  >
+                    Stop Recording
+                  </button>
+                )}
+
+                <div className="grid gap-px border border-[var(--app-border)] bg-[var(--app-border)]">
+                  <div className="bg-black px-4 py-3">
+                    <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
+                      Status
+                    </p>
+                    <p className="mt-2 text-sm text-[var(--app-text)]">
+                      {recording
+                        ? "Listening live."
+                        : submitting
+                          ? "Uploading and transcribing."
+                          : "Idle and ready."}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  No transcript yet. Record audio to generate speaker-labeled
-                  output.
+
+                {error && (
+                  <div className="border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-3">
+                    <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
+                      Error
+                    </p>
+                    <p className="mt-2 text-sm text-white">{error}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+          <aside className="grid gap-px border border-[var(--app-border)] bg-[var(--app-border)] self-start">
+            <div className="bg-[var(--app-panel)] p-5">
+              <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.32em] text-[var(--app-faint)]">
+                Sequence
+              </p>
+              <ol className="mt-5 space-y-4 text-sm leading-6 text-[var(--app-muted)]">
+                <li>
+                  <span className="mr-3 font-[family-name:var(--font-geist-mono)] text-[var(--app-faint)]">
+                    01
+                  </span>
+                  Grant microphone access.
+                </li>
+                <li>
+                  <span className="mr-3 font-[family-name:var(--font-geist-mono)] text-[var(--app-faint)]">
+                    02
+                  </span>
+                  Capture a short exchange between two voices.
+                </li>
+                <li>
+                  <span className="mr-3 font-[family-name:var(--font-geist-mono)] text-[var(--app-faint)]">
+                    03
+                  </span>
+                  Stop recording and wait for speaker assignment.
+                </li>
+                <li>
+                  <span className="mr-3 font-[family-name:var(--font-geist-mono)] text-[var(--app-faint)]">
+                    04
+                  </span>
+                  Inspect word-level speaker separation in the console pane.
+                </li>
+              </ol>
+            </div>
+
+            <div className="bg-black p-5">
+              <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.32em] text-[var(--app-faint)]">
+                Legend
+              </p>
+              <div className="mt-5 grid gap-3 text-sm">
+                <div className="flex items-center justify-between border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-3">
+                  <span className="text-[var(--app-muted)]">Speaker 1</span>
+                  <span className="font-[family-name:var(--font-geist-mono)] text-white">
+                    #FFFFFF
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-3">
+                  <span className="text-[var(--app-muted)]">Speaker 2</span>
+                  <span className="font-[family-name:var(--font-geist-mono)] text-[var(--speaker-two)]">
+                    #FFFFFF94
+                  </span>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <div className="border border-[var(--app-border)] bg-black">
+            <div className="flex items-center justify-between gap-4 border-b border-[var(--app-border)] px-5 py-4">
+              <div>
+                <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.32em] text-[var(--app-faint)]">
+                  Transcript Surface
                 </p>
+                <h2 className="mt-2 text-lg font-medium text-white">
+                  Speaker-separated output
+                </h2>
+              </div>
+              <div className="hidden items-center gap-2 sm:flex">
+                <span className="h-2.5 w-2.5 rounded-full bg-white" />
+                <span className="h-2.5 w-2.5 rounded-full bg-[var(--speaker-two)]" />
+                <span className="h-2.5 w-2.5 rounded-full bg-[var(--app-faint)]" />
+              </div>
+            </div>
+
+            <div className="min-h-[30rem] bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:24px_24px] p-5 sm:p-6">
+              {!recording ? (
+                transcription.length > 0 ? (
+                  <div className="flex flex-wrap gap-x-2 gap-y-3 font-[family-name:var(--font-geist-mono)] text-sm leading-8 sm:text-[15px]">
+                    {transcription.map((item, index) => (
+                      <span key={index} style={{ color: speakerTone(item.speaker) }}>
+                        {item.word}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex min-h-[26rem] flex-col justify-between border border-dashed border-[var(--app-border)] bg-[var(--app-panel)] p-5">
+                    <div>
+                      <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.32em] text-[var(--app-faint)]">
+                        Awaiting Input
+                      </p>
+                      <p className="mt-4 max-w-xl text-sm leading-7 text-[var(--app-muted)]">
+                        The transcript pane stays empty until a recording is
+                        captured and processed. Once diarization completes, each
+                        word is rendered here with a monochrome speaker tone.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-px border border-[var(--app-border)] bg-[var(--app-border)] sm:grid-cols-3">
+                      <div className="bg-black px-4 py-4">
+                        <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.28em] text-[var(--app-faint)]">
+                          Runtime
+                        </p>
+                        <p className="mt-2 text-sm text-[var(--app-text)]">
+                          Node.js route
+                        </p>
+                      </div>
+                      <div className="bg-black px-4 py-4">
+                        <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.28em] text-[var(--app-faint)]">
+                          Limit
+                        </p>
+                        <p className="mt-2 text-sm text-[var(--app-text)]">
+                          Short synchronous clips
+                        </p>
+                      </div>
+                      <div className="bg-black px-4 py-4">
+                        <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.28em] text-[var(--app-faint)]">
+                          Output
+                        </p>
+                        <p className="mt-2 text-sm text-[var(--app-text)]">
+                          Word-level speaker tags
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="flex min-h-[26rem] flex-col justify-between border border-[var(--app-border)] bg-[var(--app-panel)] p-5">
+                  <div>
+                    <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.32em] text-[var(--app-faint)]">
+                      Capture Active
+                    </p>
+                    <p className="mt-4 max-w-xl text-sm leading-7 text-[var(--app-muted)]">
+                      Input is being buffered from the microphone. Stop the
+                      session to hand off the audio for transcription.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 font-[family-name:var(--font-geist-mono)] text-sm uppercase tracking-[0.24em] text-white">
+                    <span className="h-3 w-3 animate-pulse rounded-full bg-white" />
+                    Recording
+                  </div>
+                </div>
               )}
             </div>
           </div>
