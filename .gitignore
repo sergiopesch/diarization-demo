@@ -27,6 +27,8 @@
 # system files
 .DS_Store
 *.pem
+__pycache__/
+*.py[cod]
 
 # logs
 npm-debug.log*
