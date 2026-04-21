@@ -1,11 +1,15 @@
 {
   "name": "google-speech-diarization-demo",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@google-cloud/speech": "^7.3.0",

@@ -11,7 +11,7 @@ A small Next.js demo that records browser audio, sends it to Google Cloud Speech
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 20+
 - A Google Cloud project with Speech-to-Text enabled
 - Credentials available through one of these approaches:
   - `GOOGLE_CLOUD_CREDENTIALS` containing the full service-account JSON
@@ -45,6 +45,11 @@ npm run dev
 - `npm run build`
 - `npm run start`
 - `npm run lint`
+- `npm run typecheck`
+
+## CI
+
+GitHub Actions runs lint, typecheck, and production build validation for pull requests and pushes to `master` and `codex/*` branches.
 
 ## Notes
 
