@@ -4,31 +4,32 @@
 
 :root {
   --app-bg: #050505;
-  --app-panel: rgba(255, 255, 255, 0.03);
-  --app-panel-strong: rgba(255, 255, 255, 0.06);
-  --app-border: rgba(255, 255, 255, 0.12);
-  --app-border-strong: rgba(255, 255, 255, 0.22);
-  --app-text: #f3f3f0;
-  --app-muted: rgba(243, 243, 240, 0.62);
-  --app-faint: rgba(243, 243, 240, 0.34);
+  --app-panel: rgba(255, 255, 255, 0.025);
+  --app-panel-strong: rgba(255, 255, 255, 0.05);
+  --app-border: rgba(255, 255, 255, 0.11);
+  --app-border-strong: rgba(255, 255, 255, 0.2);
+  --app-text: #f5f5f2;
+  --app-muted: rgba(245, 245, 242, 0.66);
+  --app-faint: rgba(245, 245, 242, 0.36);
   --speaker-one: #ffffff;
-  --speaker-two: rgba(255, 255, 255, 0.58);
-  --speaker-other: rgba(255, 255, 255, 0.78);
+  --speaker-two: rgba(255, 255, 255, 0.56);
+  --speaker-other: rgba(255, 255, 255, 0.76);
 }
 
 html {
   background:
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 22rem),
-    linear-gradient(180deg, #0a0a0a, #050505 45%);
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.045), transparent 18rem),
+    linear-gradient(180deg, #0a0a0a, #050505 42%);
   color: var(--app-text);
 }
 
 body {
   min-height: 100vh;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 36px 36px;
+  background-color: var(--app-bg);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 32px 32px;
   color: var(--app-text);
 }
 
