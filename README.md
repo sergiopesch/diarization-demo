@@ -1,6 +1,6 @@
 # Diarization Demo
 
-A Next.js demo that records browser audio, sends it to Google Cloud Speech-to-Text, and renders a diarized transcript with per-speaker coloring.
+A Next.js application that records browser audio, sends it to Google Cloud Speech-to-Text, and renders a diarized transcript with per-speaker styling.
 
 ## Overview
 
@@ -11,7 +11,7 @@ This project is intentionally narrow in scope:
 - the server calls Google Cloud Speech-to-Text with diarization enabled
 - the UI renders the returned words with speaker-specific colors
 
-The demo is designed for short synchronous transcriptions, not long-running batch jobs.
+The app is designed for short synchronous transcriptions, not long-running batch jobs.
 
 ## Screenshots
 
@@ -128,12 +128,12 @@ Successful response:
 Error behavior:
 
 - `400` for missing or malformed `audioContent`
-- `413` for oversized payloads that exceed the synchronous-demo limit
+- `413` for oversized payloads that exceed the synchronous route limit
 - `500` for transcription failures or credential/runtime issues
 
 ## Operational Notes
 
-- The demo currently requests diarization for two speakers.
+- The current configuration requests diarization for two speakers.
 - The API route is pinned to the Node.js runtime so the Google Cloud client is not deployed to an Edge runtime.
 - Large uploads are rejected so the app stays on a simple synchronous transcription path.
 - Browser support depends on `MediaRecorder` support for `audio/webm`.
@@ -159,7 +159,7 @@ Before deploying:
 
 - provide `GOOGLE_CLOUD_CREDENTIALS` or equivalent ADC configuration
 - ensure the runtime is Node.js, not Edge
-- expect the demo route to be suitable for short audio clips, not large uploads or async batch processing
+- expect the transcription route to be suitable for short audio clips, not large uploads or async batch processing
 
 ## Troubleshooting
 

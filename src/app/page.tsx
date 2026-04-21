@@ -148,15 +148,15 @@ export default function Home() {
         <section className="grid gap-px border border-[var(--app-border)] bg-[var(--app-border)] lg:grid-cols-[1.35fr_0.9fr]">
           <div className="bg-[var(--app-panel)] px-5 py-8 sm:px-8 sm:py-10">
             <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.42em] text-[var(--app-faint)]">
-              Codex Inspired Voice Interface
+              Diarization Demo
             </p>
             <h1 className="mt-6 max-w-4xl text-4xl font-medium leading-none tracking-[-0.06em] text-white sm:text-6xl">
-              Black-and-white diarization with a terminal-grade surface.
+              Speaker-separated transcription with a focused monochrome surface.
             </h1>
             <p className="mt-6 max-w-2xl text-sm leading-7 text-[var(--app-muted)] sm:text-base">
-              Record a short exchange, route it through Google Cloud Speech,
-              then review the speaker-separated output in a deliberately minimal
-              interface inspired by Codex.
+              Record a short exchange, send it through Google Cloud Speech, and
+              review the resulting transcript with word-level speaker
+              separation.
             </p>
 
             <div className="mt-8 grid gap-px border border-[var(--app-border)] bg-[var(--app-border)] sm:grid-cols-3">
@@ -334,8 +334,7 @@ export default function Home() {
             </p>
             <p className="mt-4 text-sm leading-7 text-[var(--app-muted)]">
               Monochrome contrast, restrained typography, and minimal controls
-              are used to keep the output feeling closer to a tool than a
-              marketing demo.
+              keep the interface clear and focused on the transcript itself.
             </p>
           </div>
 

@@ -2,7 +2,7 @@
   "name": "diarization-demo",
   "private": true,
   "version": "1.0.0",
-  "description": "Browser recording demo for Google Cloud Speech-to-Text diarization.",
+  "description": "Browser-based speaker diarization with Google Cloud Speech-to-Text.",
   "engines": {
     "node": ">=20"
   },
