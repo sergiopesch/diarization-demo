@@ -2,10 +2,60 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type TranscriptWord = {
-  word: string;
-  speaker: number;
+import type {
+  TranscriptWord,
+  TranscriptionProvider,
+} from "@/lib/transcription";
+
+type ProviderOption = {
+  value: TranscriptionProvider;
+  label: string;
+  summary: string;
+  models: Array<{ value: string; label: string }>;
 };
+
+const PROVIDER_OPTIONS: ProviderOption[] = [
+  {
+    value: "google",
+    label: "Google Speech",
+    summary: "Cloud baseline with fixed two-speaker diarization.",
+    models: [{ value: "google-speech-default", label: "Speech default" }],
+  },
+  {
+    value: "whisperx",
+    label: "WhisperX + pyannote",
+    summary: "Best local baseline for word timestamps plus diarization.",
+    models: [
+      { value: "large-v3-turbo", label: "Whisper large-v3-turbo" },
+      { value: "large-v3", label: "Whisper large-v3" },
+      { value: "distil-large-v3", label: "distil-large-v3" },
+    ],
+  },
+  {
+    value: "parakeet-pyannote",
+    label: "Parakeet + pyannote",
+    summary: "Fast ASR path with external diarization worker.",
+    models: [
+      {
+        value: "nvidia/parakeet-unified-en-0.6b",
+        label: "Parakeet unified 0.6B",
+      },
+      {
+        value: "nvidia/parakeet-tdt-0.6b-v2",
+        label: "Parakeet TDT 0.6B v2",
+      },
+    ],
+  },
+  {
+    value: "nemo",
+    label: "NeMo diarization",
+    summary: "Research-grade diarization experiments via local worker.",
+    models: [
+      { value: "sortformer", label: "Sortformer diarizer" },
+      { value: "msdd+titanet", label: "MSDD + TitaNet" },
+    ],
+  },
+];
 
 const speakerTone = (speaker: number): string => {
   switch (speaker) {
@@ -18,11 +68,18 @@ const speakerTone = (speaker: number): string => {
   }
 };
 
+const getProviderConfig = (provider: TranscriptionProvider): ProviderOption =>
+  PROVIDER_OPTIONS.find((option) => option.value === provider) ?? PROVIDER_OPTIONS[0];
+
 export default function Home() {
+  const [provider, setProvider] = useState<TranscriptionProvider>("whisperx");
+  const [model, setModel] = useState(getProviderConfig("whisperx").models[0].value);
   const [recording, setRecording] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcription, setTranscription] = useState<TranscriptWord[]>([]);
+  const [resultProvider, setResultProvider] = useState<string | null>(null);
+  const [resultModel, setResultModel] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -32,6 +89,14 @@ export default function Home() {
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
+
+  useEffect(() => {
+    const nextModel = getProviderConfig(provider).models[0]?.value;
+
+    if (nextModel) {
+      setModel(nextModel);
+    }
+  }, [provider]);
 
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -54,6 +119,8 @@ export default function Home() {
     try {
       setError(null);
       setTranscription([]);
+      setResultProvider(null);
+      setResultModel(null);
       chunksRef.current = [];
 
       if (typeof MediaRecorder === "undefined") {
@@ -96,22 +163,28 @@ export default function Home() {
           setSubmitting(true);
 
           const base64Audio = await blobToBase64(blob);
-          const resp = await fetch("/api/transcribe", {
+          const response = await fetch("/api/transcribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ audioContent: base64Audio }),
+            body: JSON.stringify({
+              audioContent: base64Audio,
+              provider,
+              model,
+              languageCode: "en-US",
+              speakerCount: 2,
+            }),
           });
-          const data = await resp.json();
+          const data = await response.json();
 
-          if (!resp.ok) {
+          if (!response.ok) {
             throw new Error(data.error || "Transcription failed");
           }
 
           setTranscription(data.transcriptionData ?? []);
+          setResultProvider(data.provider ?? provider);
+          setResultModel(data.model ?? model);
         } catch (err) {
-          setError(
-            err instanceof Error ? err.message : "Transcription failed"
-          );
+          setError(err instanceof Error ? err.message : "Transcription failed");
         } finally {
           setSubmitting(false);
         }
@@ -132,10 +205,11 @@ export default function Home() {
     }
 
     setRecording(false);
-    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current.stop();
     mediaRecorderRef.current = null;
   };
 
+  const selectedProvider = getProviderConfig(provider);
   const statusLabel = recording
     ? "Recording live"
     : submitting
@@ -151,12 +225,12 @@ export default function Home() {
               Diarization Demo
             </p>
             <h1 className="mt-6 max-w-4xl text-4xl font-medium leading-none tracking-[-0.06em] text-white sm:text-6xl">
-              Speaker-separated transcription with a focused monochrome surface.
+              Compare diarization backends from the same recording surface.
             </h1>
             <p className="mt-6 max-w-2xl text-sm leading-7 text-[var(--app-muted)] sm:text-base">
-              Record a short exchange, send it through Google Cloud Speech, and
-              review the resulting transcript with word-level speaker
-              separation.
+              Use Google as a cloud baseline or route audio into a local worker
+              for WhisperX, pyannote, Parakeet, and NeMo experiments without
+              changing the frontend flow.
             </p>
 
             <div className="mt-8 grid gap-px border border-[var(--app-border)] bg-[var(--app-border)] sm:grid-cols-3">
@@ -168,15 +242,15 @@ export default function Home() {
               </div>
               <div className="bg-black px-4 py-4">
                 <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
-                  Mode
+                  Provider
                 </p>
-                <p className="mt-2 text-sm text-white">Two-speaker diarization</p>
+                <p className="mt-2 text-sm text-white">{selectedProvider.label}</p>
               </div>
               <div className="bg-black px-4 py-4">
                 <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
-                  Runtime
+                  Mode
                 </p>
-                <p className="mt-2 text-sm text-white">Node route / sync path</p>
+                <p className="mt-2 text-sm text-white">Two-speaker diarization</p>
               </div>
             </div>
           </div>
@@ -199,6 +273,47 @@ export default function Home() {
             </div>
 
             <div className="mt-6 flex flex-col gap-4">
+              <label className="grid gap-2">
+                <span className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
+                  Backend
+                </span>
+                <select
+                  value={provider}
+                  onChange={(event) =>
+                    setProvider(event.target.value as TranscriptionProvider)
+                  }
+                  disabled={recording || submitting}
+                  className="border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-3 text-sm text-white outline-none transition focus:border-[var(--app-border-strong)] disabled:cursor-not-allowed disabled:text-[var(--app-faint)]"
+                >
+                  {PROVIDER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs leading-6 text-[var(--app-muted)]">
+                  {selectedProvider.summary}
+                </span>
+              </label>
+
+              <label className="grid gap-2">
+                <span className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--app-faint)]">
+                  Model
+                </span>
+                <select
+                  value={model}
+                  onChange={(event) => setModel(event.target.value)}
+                  disabled={recording || submitting}
+                  className="border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-3 text-sm text-white outline-none transition focus:border-[var(--app-border-strong)] disabled:cursor-not-allowed disabled:text-[var(--app-faint)]"
+                >
+                  {selectedProvider.models.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               {!recording ? (
                 <button
                   onClick={startRecording}
@@ -222,7 +337,7 @@ export default function Home() {
                     Output
                   </p>
                   <p className="mt-2 text-sm text-white">
-                    Word-level speaker tags with monochrome contrast.
+                    Word-level speaker tags with a stable comparison surface.
                   </p>
                 </div>
                 <div className="bg-[var(--app-panel)] px-4 py-4">
@@ -273,12 +388,19 @@ export default function Home() {
           <div className="min-h-[24rem] bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:24px_24px] px-5 py-6 sm:px-6">
             {!recording ? (
               transcription.length > 0 ? (
-                <div className="flex flex-wrap gap-x-2 gap-y-3 font-[family-name:var(--font-geist-mono)] text-sm leading-8 sm:text-[15px]">
-                  {transcription.map((item, index) => (
-                    <span key={index} style={{ color: speakerTone(item.speaker) }}>
-                      {item.word}
-                    </span>
-                  ))}
+                <div className="space-y-5">
+                  <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.24em] text-[var(--app-muted)]">
+                    <span>Provider {resultProvider ?? provider}</span>
+                    <span>Model {resultModel ?? model}</span>
+                    <span>Words {transcription.length}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-2 gap-y-3 font-[family-name:var(--font-geist-mono)] text-sm leading-8 sm:text-[15px]">
+                    {transcription.map((item, index) => (
+                      <span key={index} style={{ color: speakerTone(item.speaker) }}>
+                        {item.word}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="flex min-h-[19rem] flex-col justify-between border border-dashed border-[var(--app-border)] bg-[var(--app-panel)] p-5">
@@ -288,8 +410,8 @@ export default function Home() {
                     </p>
                     <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--app-muted)]">
                       The transcript pane stays empty until a recording is
-                      captured and processed. Once diarization completes, the
-                      surface renders each word in a distinct monochrome tone.
+                      captured and processed. Use the same clip across providers
+                      to compare diarization quality and timing behavior.
                     </p>
                   </div>
                 </div>
@@ -302,7 +424,7 @@ export default function Home() {
                   </p>
                   <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--app-muted)]">
                     Input is being buffered from the microphone. Stop the
-                    session to hand off the recording for transcription.
+                    session to hand off the recording to the selected backend.
                   </p>
                 </div>
 
@@ -321,20 +443,20 @@ export default function Home() {
               Sequence
             </p>
             <ol className="mt-4 space-y-3 text-sm leading-6 text-[var(--app-muted)]">
-              <li>01 / Grant microphone access.</li>
-              <li>02 / Capture a short exchange.</li>
-              <li>03 / Stop recording for diarization.</li>
-              <li>04 / Review the transcript surface.</li>
+              <li>01 / Select a provider and model.</li>
+              <li>02 / Grant microphone access.</li>
+              <li>03 / Capture a short exchange.</li>
+              <li>04 / Compare transcript output.</li>
             </ol>
           </div>
 
           <div className="bg-[var(--app-panel)] px-5 py-5">
             <p className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.34em] text-[var(--app-faint)]">
-              Interface
+              Evaluation
             </p>
             <p className="mt-4 text-sm leading-7 text-[var(--app-muted)]">
-              Monochrome contrast, restrained typography, and minimal controls
-              keep the interface clear and focused on the transcript itself.
+              Keep the recording surface stable and swap only one variable at a
+              time: provider, ASR model, or diarization stack.
             </p>
           </div>
 
@@ -343,8 +465,8 @@ export default function Home() {
               Constraints
             </p>
             <p className="mt-4 text-sm leading-7 text-[var(--app-muted)]">
-              This route stays synchronous by design. Keep recordings short and
-              use the verification flow when making changes to the repo.
+              The local worker is the right place for heavy Python models. The
+              Next route stays thin and synchronous by design.
             </p>
           </div>
         </section>

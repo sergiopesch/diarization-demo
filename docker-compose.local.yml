@@ -1,0 +1,22 @@
+services:
+  diarization-demo:
+    image: node:20-bookworm
+    command: sh -lc "npm install && npm run dev"
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    volumes:
+      - .:/app
+      - /app/node_modules
+    working_dir: /app
+
+  local-stt-worker:
+    build:
+      context: ./local-stt-worker
+    ports:
+      - "8000:8000"
+    environment:
+      LOCAL_STT_DEVICE: ${LOCAL_STT_DEVICE:-cpu}
+      WHISPERX_MODEL: ${WHISPERX_MODEL:-large-v3-turbo}
+      PYANNOTE_AUTH_TOKEN: ${PYANNOTE_AUTH_TOKEN:-}

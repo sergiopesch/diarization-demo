@@ -1,187 +1,159 @@
 # Diarization Demo
 
-A Next.js application that records browser audio, sends it to Google Cloud Speech-to-Text, and renders a diarized transcript with per-speaker styling.
+A Next.js application that records browser audio, sends it to `/api/transcribe`, and renders a diarized transcript with per-speaker styling.
 
-## Overview
+The app now supports two execution modes behind the same UI:
 
-This project is intentionally narrow in scope:
+- `google`: Google Cloud Speech-to-Text as a cloud baseline
+- `whisperx`, `parakeet-pyannote`, `nemo`: local providers routed through a Python worker
 
-- the browser records microphone audio with `MediaRecorder`
-- the client sends a base64-encoded WebM/Opus payload to `/api/transcribe`
-- the server calls Google Cloud Speech-to-Text with diarization enabled
-- the UI renders the returned words with speaker-specific colors
+## Recommended setup
 
-The app is designed for short synchronous transcriptions, not long-running batch jobs.
+For this project, the best practical local baseline is:
 
-## Screenshots
+- Next.js stays as the browser and orchestration layer
+- a separate Python worker handles local ASR and diarization
+- start with `WhisperX + pyannote`
+- compare against Google Cloud from the same recording flow
 
-### Desktop
+That architecture is the lowest-friction way to test different local models without trying to embed Python ML stacks inside a Next.js route.
 
-![Desktop solution view](./public/screenshots/solution-view.png)
+## Current provider status
 
-### Mobile
+- `google`: implemented in the Node route
+- `whisperx`: implemented in the local worker scaffold
+- `parakeet-pyannote`: selectable in the UI and request path, worker implementation pending
+- `nemo`: selectable in the UI and request path, worker implementation pending
 
-![Mobile solution view](./public/screenshots/solution-view-mobile.png)
+## Current repo status
 
-## Project Structure
+Today this repo is in the transition state between a single Google-only demo and a proper backend comparison harness:
+
+- the frontend can select providers and models
+- the Next.js route can dispatch to cloud or local backends
+- Google remains the working baseline
+- the local Python worker is in place
+- WhisperX is the first local path to validate next
+- Parakeet and NeMo are scaffolded for later implementation
+
+## Project structure
 
 ```text
-src/app/page.tsx                 Browser UI for recording and transcript display
-src/app/api/transcribe/route.ts  Server route that calls Google Cloud Speech
-src/lib/transcription.ts         Shared request validation logic
-src/lib/transcription.test.ts    Vitest coverage for validation rules
-.github/workflows/ci.yml         CI validation workflow
+src/app/page.tsx                  Browser UI for recording and backend selection
+src/app/api/transcribe/route.ts   Provider-dispatching Node route
+src/lib/transcription.ts          Shared request validation and types
+src/lib/google-transcription.ts   Google Cloud transcription adapter
+src/lib/local-transcription.ts    HTTP adapter for the local Python worker
+local-stt-worker/app.py           FastAPI worker for local models
+docker-compose.local.yml          App + local worker development stack
 ```
 
 ## Requirements
 
 - Node.js 20+
 - npm
-- A Google Cloud project with Speech-to-Text enabled
-- Credentials available through one of these approaches:
-  - `GOOGLE_CLOUD_CREDENTIALS` containing the full service-account JSON
-  - Application Default Credentials configured in the runtime environment
+- Python 3.11+ if you want to run the local worker outside Docker
+- `ffmpeg` for local WhisperX usage
+- optional Google Cloud credentials if you want the cloud baseline
+- a Hugging Face token with access to pyannote gated models for WhisperX diarization
 
-## Environment Setup
+## Environment setup
 
-Create local credentials in one of these ways.
-
-### Option 1: Export credentials in your shell
-
-```bash
-export GOOGLE_CLOUD_CREDENTIALS='{"type":"service_account",...}'
-```
-
-### Option 2: Use `.env.local`
+Copy the example file:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Then replace the placeholder JSON value with your real service-account payload.
+Important variables:
 
-## Local Development
+- `TRANSCRIPTION_PROVIDER`: default backend for the route
+- `LOCAL_TRANSCRIPTION_API_URL`: local worker base URL
+- `GOOGLE_CLOUD_CREDENTIALS`: Google fallback credentials
+- `LOCAL_STT_DEVICE`: `cpu` or `cuda` for the worker
+- `WHISPERX_MODEL`: default Whisper model for the local worker
+- `PYANNOTE_AUTH_TOKEN`: token used by WhisperX diarization
 
-1. Install dependencies:
+## Local development
+
+### Option 1: Run Next.js locally and the worker in Docker
+
+Start the app:
 
 ```bash
 npm install
-```
-
-2. Start the dev server:
-
-```bash
 npm run dev
 ```
 
-3. Open `http://localhost:3000`
-4. Allow microphone access in the browser
-5. Record a short clip and stop recording to trigger transcription
+Start the local worker:
 
-## Validation Commands
+```bash
+docker compose -f docker-compose.local.yml up local-stt-worker
+```
 
-- `npm run lint`: ESLint
-- `npm run test`: Vitest unit tests
-- `npm run typecheck`: Next route type generation plus TypeScript validation
-- `npm run build`: production build
-- `npm run audit`: dependency audit at `high` severity or above
-- `npm run verify`: canonical local validation flow
+### Option 2: Run both services with Docker Compose
 
-Recommended local workflow:
+```bash
+docker compose -f docker-compose.local.yml up
+```
+
+### Option 3: Run the worker directly in Python
+
+```bash
+cd local-stt-worker
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --reload
+```
+
+Then open `http://localhost:3000`, allow microphone access, choose a backend and model, and record a short clip.
+
+## Recommended evaluation flow
+
+1. Keep one short two-speaker clip and reuse it.
+2. Run `google` first as the baseline.
+3. Switch to `whisperx` and compare `large-v3-turbo`, `large-v3`, and `distil-large-v3`.
+4. Only after that add `parakeet-pyannote` or `nemo` worker implementations.
+
+That sequence gives you a strong baseline quickly and keeps the comparisons clean.
+
+## WhisperX notes
+
+The worker uses WhisperX for:
+
+- Whisper-family ASR
+- alignment for better word timestamps
+- pyannote-backed speaker diarization
+
+The local worker expects `PYANNOTE_AUTH_TOKEN` because pyannote diarization models are gated on Hugging Face.
+
+## Validation commands
+
+- `npm run lint`
+- `npm run test`
+- `npm run typecheck`
+- `npm run build`
+- `npm run verify`
+
+Recommended local validation flow:
 
 ```bash
 npm run verify
 ```
 
-## How The Transcription Flow Works
+## Known constraints
 
-1. The browser records audio with `MediaRecorder`.
-2. The client converts the recorded blob to base64.
-3. The client posts `{ audioContent }` to `/api/transcribe`.
-4. The server validates the payload before calling Google Cloud Speech.
-5. The server reads the final recognition result and extracts word-level speaker tags.
-6. The UI renders the transcript with a color per detected speaker.
+- the browser still records short synchronous clips
+- the local worker is where heavy models belong
+- `parakeet-pyannote` and `nemo` are scaffolded but not yet implemented in `local-stt-worker/app.py`
+- overlapping speech remains hard for all current local stacks
 
-## API Behavior
+## Next steps for deeper model testing
 
-`POST /api/transcribe`
+If you want to expand this repo beyond the current baseline, the next useful additions are:
 
-Request body:
-
-```json
-{
-  "audioContent": "<base64-webm-opus-audio>"
-}
-```
-
-Successful response:
-
-```json
-{
-  "transcriptionData": [
-    { "word": "Hello", "speaker": 1 },
-    { "word": "there", "speaker": 2 }
-  ]
-}
-```
-
-Error behavior:
-
-- `400` for missing or malformed `audioContent`
-- `413` for oversized payloads that exceed the synchronous route limit
-- `500` for transcription failures or credential/runtime issues
-
-## Operational Notes
-
-- The current configuration requests diarization for two speakers.
-- The API route is pinned to the Node.js runtime so the Google Cloud client is not deployed to an Edge runtime.
-- Large uploads are rejected so the app stays on a simple synchronous transcription path.
-- Browser support depends on `MediaRecorder` support for `audio/webm`.
-- `next build` and `next typegen` both write under `.next`, so Next-based checks should be run sequentially in the same checkout.
-
-## CI And Dependency Hygiene
-
-GitHub Actions runs:
-
-- lint
-- test
-- typecheck
-- build
-- dependency audit
-
-Dependabot is configured to keep npm dependencies and GitHub Actions versions moving on a weekly cadence.
-
-## Deployment Notes
-
-This app is straightforward to deploy anywhere that supports a Next.js Node runtime.
-
-Before deploying:
-
-- provide `GOOGLE_CLOUD_CREDENTIALS` or equivalent ADC configuration
-- ensure the runtime is Node.js, not Edge
-- expect the transcription route to be suitable for short audio clips, not large uploads or async batch processing
-
-## Troubleshooting
-
-### Microphone access fails
-
-- confirm the browser has permission to use the microphone
-- confirm the page is served in an environment where microphone access is allowed
-
-### Transcription fails immediately
-
-- verify Google Cloud Speech-to-Text is enabled
-- verify the service-account credentials are valid
-- verify `GOOGLE_CLOUD_CREDENTIALS` contains real JSON, not shell-escaped partial content
-
-### Typecheck or build conflicts locally
-
-- use `npm run verify`
-- avoid running `npm run typecheck` and `npm run build` concurrently in the same checkout
-
-## Future Improvements
-
-- configurable speaker count
-- async transcription path for larger files
-- persisted transcript history
-- e2e browser coverage for the recording flow
+1. implement `parakeet-pyannote` in `local-stt-worker/app.py`
+2. add a NeMo diarization path for `Sortformer` or `MSDD`
+3. persist run metadata so you can compare multiple transcripts side by side
+4. add a file-upload path so you can benchmark the same audio repeatedly instead of re-recording it
