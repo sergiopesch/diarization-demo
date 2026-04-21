@@ -31,6 +31,8 @@ npm install
 export GOOGLE_CLOUD_CREDENTIALS='{"type":"service_account",...}'
 ```
 
+You can also copy `.env.example` to `.env.local` and replace the placeholder JSON with your service-account payload.
+
 3. Start the dev server:
 
 ```bash
@@ -46,6 +48,7 @@ npm run dev
 - `npm run start`
 - `npm run lint`
 - `npm run typecheck`
+- `npm run test`
 
 ## CI
 
@@ -58,3 +61,4 @@ Dependabot is configured to keep npm dependencies and GitHub Actions versions mo
 - The API handler reads the final recognition result for speaker-tagged words, which matches Google Cloud's diarization behavior for non-streaming requests.
 - Browser support depends on `MediaRecorder` support for `audio/webm`.
 - Large uploads are rejected so the demo stays within a simple synchronous transcription path.
+- The transcription route is pinned to the Node.js runtime so the Google Cloud client does not end up on an Edge deployment target.
