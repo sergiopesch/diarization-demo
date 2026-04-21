@@ -13,6 +13,16 @@ This project is intentionally narrow in scope:
 
 The demo is designed for short synchronous transcriptions, not long-running batch jobs.
 
+## Screenshots
+
+### Desktop
+
+![Desktop solution view](./public/screenshots/solution-view.png)
+
+### Mobile
+
+![Mobile solution view](./public/screenshots/solution-view-mobile.png)
+
 ## Project Structure
 
 ```text
