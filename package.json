@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run src/lib",
-    "test:e2e": "playwright test",
+    "test:e2e": "NO_COLOR= playwright test",
     "audit": "npm audit --audit-level=high",
     "verify": "npm run lint && npm run test && npm run typecheck && npm run build && npm run test:e2e"
   },
@@ -35,6 +35,8 @@
   },
   "overrides": {
     "protobufjs": "^7.5.5",
-    "glob": "^13.0.6"
+    "glob": "^13.0.6",
+    "postcss": "^8.5.12",
+    "uuid": "^14.0.0"
   }
 }

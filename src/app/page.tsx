@@ -64,6 +64,7 @@ type AssemblyAIMessage = {
 const LIVE_CHUNK_MS = 6_000;
 const ASSEMBLYAI_SAMPLE_RATE = 16_000;
 const LINK_POLL_INTERVAL_MS = 3_000;
+const LIVE_SOCKET_CONNECT_TIMEOUT_MS = 10_000;
 const AUDIO_SIZE_ERROR = "Use a shorter audio file.";
 const AUDIO_FORMAT_ERROR = "Upload WebM audio.";
 
@@ -201,6 +202,7 @@ export default function Home() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioOutputRef = useRef<GainNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const submitQueueRef = useRef<Promise<void>>(Promise.resolve());
   const linkPollingCancelledRef = useRef(false);
@@ -410,11 +412,13 @@ export default function Home() {
 
     audioProcessorRef.current?.disconnect();
     audioSourceRef.current?.disconnect();
+    audioOutputRef.current?.disconnect();
     void audioContextRef.current?.close();
     assemblyWebSocketRef.current = null;
     audioContextRef.current = null;
     audioProcessorRef.current = null;
     audioSourceRef.current = null;
+    audioOutputRef.current = null;
   };
 
   const startAssemblyAIStreaming = async (
@@ -428,16 +432,21 @@ export default function Home() {
     try {
       resetResult({ preserveVideo: options.preserveVideo });
       const streamModel = options.modelOverride ?? model;
+      const AudioContextConstructor = getAudioContextConstructor();
 
-      if (typeof WebSocket === "undefined" || typeof AudioContext === "undefined") {
+      if (typeof WebSocket === "undefined" || !AudioContextConstructor) {
         throw new Error("Live streaming is not supported.");
       }
 
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Audio capture is not supported.");
+      }
+
+      const token = await getAssemblyAIToken();
       const stream =
         mode === "system"
           ? await getSystemAudioStream()
           : await navigator.mediaDevices.getUserMedia({ audio: true });
-      const token = await getAssemblyAIToken();
       const endpoint = new URL("wss://streaming.assemblyai.com/v3/ws");
       endpoint.searchParams.set("token", token);
       endpoint.searchParams.set("sample_rate", String(ASSEMBLYAI_SAMPLE_RATE));
@@ -446,17 +455,11 @@ export default function Home() {
       endpoint.searchParams.set("speaker_labels", "true");
       endpoint.searchParams.set("max_speakers", "2");
 
-      const socket = new WebSocket(endpoint);
-      socket.binaryType = "arraybuffer";
+      const socket = await connectAssemblyAISocket(endpoint);
       assemblyWebSocketRef.current = socket;
       streamRef.current = stream;
       stream.getAudioTracks().forEach((track) => {
         track.onended = () => stopLiveCapture();
-      });
-
-      await new Promise<void>((resolve, reject) => {
-        socket.onopen = () => resolve();
-        socket.onerror = () => reject(new Error("AssemblyAI connection failed"));
       });
 
       socket.onmessage = (event) =>
@@ -475,9 +478,11 @@ export default function Home() {
         setCaptureMode("idle");
       };
 
-      const audioContext = new AudioContext();
+      const audioContext = new AudioContextConstructor();
       const source = audioContext.createMediaStreamSource(stream);
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const mutedOutput = audioContext.createGain();
+      mutedOutput.gain.value = 0;
 
       processor.onaudioprocess = (event) => {
         if (socket.readyState !== WebSocket.OPEN) {
@@ -497,10 +502,12 @@ export default function Home() {
       };
 
       source.connect(processor);
-      processor.connect(audioContext.destination);
+      processor.connect(mutedOutput);
+      mutedOutput.connect(audioContext.destination);
       audioContextRef.current = audioContext;
       audioSourceRef.current = source;
       audioProcessorRef.current = processor;
+      audioOutputRef.current = mutedOutput;
       setCaptureMode(mode);
     } catch (err) {
       setError(err instanceof Error ? err.message : "AssemblyAI unavailable.");
@@ -593,7 +600,7 @@ export default function Home() {
   };
 
   const getSystemAudioStream = async (): Promise<MediaStream> => {
-    if (!navigator.mediaDevices.getDisplayMedia) {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
       throw new Error("System audio capture is not supported.");
     }
 
@@ -623,6 +630,10 @@ export default function Home() {
 
       if (typeof MediaRecorder === "undefined") {
         throw new Error("Recording is not supported.");
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Audio capture is not supported.");
       }
 
       const stream =
@@ -972,6 +983,47 @@ function downsampleToPCM16(
   }
 
   return output.buffer;
+}
+
+function getAudioContextConstructor(): typeof AudioContext | null {
+  type WindowWithWebkitAudioContext = Window &
+    typeof globalThis & {
+      webkitAudioContext?: typeof AudioContext;
+    };
+
+  return (
+    window.AudioContext ??
+    (window as WindowWithWebkitAudioContext).webkitAudioContext ??
+    null
+  );
+}
+
+function connectAssemblyAISocket(endpoint: URL): Promise<WebSocket> {
+  const socket = new WebSocket(endpoint);
+  socket.binaryType = "arraybuffer";
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      socket.close();
+      reject(new Error("AssemblyAI connection timed out"));
+    }, LIVE_SOCKET_CONNECT_TIMEOUT_MS);
+
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      socket.onopen = null;
+      socket.onerror = null;
+    };
+
+    socket.onopen = () => {
+      cleanup();
+      resolve(socket);
+    };
+    socket.onerror = () => {
+      cleanup();
+      reject(new Error("AssemblyAI connection failed"));
+    };
+  });
 }
 
 function wait(ms: number): Promise<void> {

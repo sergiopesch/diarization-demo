@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 const TOKEN_URL = "https://streaming.assemblyai.com/v3/token";
 const TOKEN_TTL_SECONDS = 60;
 const MAX_SESSION_SECONDS = 60 * 60;
+const REQUEST_TIMEOUT_MS = 10_000;
 
 type AssemblyAITokenResponse = {
   token?: string;
@@ -29,15 +30,21 @@ export async function POST() {
     String(MAX_SESSION_SECONDS)
   );
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: apiKey,
-    },
-    cache: "no-store",
-  });
-  const payload = (await response.json().catch(() => ({}))) as
-    | AssemblyAITokenResponse
-    | Record<string, unknown>;
+  const { response, payload, error } = await requestAssemblyAIToken(
+    url,
+    apiKey
+  );
+
+  if (error) {
+    return NextResponse.json({ error }, { status: 502 });
+  }
+
+  if (!response || !payload) {
+    return NextResponse.json(
+      { error: "AssemblyAI token request failed" },
+      { status: 502 }
+    );
+  }
 
   if (!response.ok || typeof payload.token !== "string") {
     return NextResponse.json(
@@ -58,4 +65,41 @@ export async function POST() {
         ? payload.expires_in_seconds
         : TOKEN_TTL_SECONDS,
   });
+}
+
+async function requestAssemblyAIToken(
+  url: URL,
+  apiKey: string
+): Promise<{
+  response: Response | null;
+  payload: AssemblyAITokenResponse | null;
+  error: string | null;
+}> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: apiKey,
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    const payload = (await response.json().catch(() => ({}))) as
+      | AssemblyAITokenResponse
+      | Record<string, unknown>;
+
+    return {
+      response,
+      payload,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      response: null,
+      payload: null,
+      error:
+        error instanceof Error && error.name === "TimeoutError"
+          ? "AssemblyAI token request timed out"
+          : "AssemblyAI token service is unavailable",
+    };
+  }
 }

@@ -2,24 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   type AssemblyAITranscriptPayload,
+  type AssemblyAITranscriptResponse,
   formatAssemblyAIError,
   getAsyncModel,
   mapAssemblyAIUtterances,
-} from "@/app/api/assemblyai/transcripts/route";
+} from "@/lib/assemblyai-transcription";
 
 export const runtime = "nodejs";
 
 const TRANSCRIPT_URL = "https://api.assemblyai.com/v2/transcript";
+const REQUEST_TIMEOUT_MS = 15_000;
 
 type RouteContext = {
   params: Promise<{ id: string }>;
-};
-
-type AssemblyAITranscriptResponse = {
-  id?: string;
-  status?: string;
-  error?: string;
-  utterances?: Parameters<typeof mapAssemblyAIUtterances>[0];
 };
 
 export async function GET(req: NextRequest, context: RouteContext) {
@@ -38,25 +33,28 @@ export async function GET(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Invalid transcript id" }, { status: 400 });
   }
 
-  const response = await fetch(`${TRANSCRIPT_URL}/${id}`, {
-    headers: {
-      Authorization: apiKey,
-    },
-    cache: "no-store",
-  });
-  const payload = (await response.json().catch(() => ({}))) as
-    | AssemblyAITranscriptResponse
-    | Record<string, unknown>;
+  const { response, payload, error } = await fetchTranscriptStatus(apiKey, id);
 
-  if (!response.ok) {
+  if (error) {
+    return NextResponse.json({ error }, { status: 502 });
+  }
+
+  if (!response?.ok) {
     return NextResponse.json(
       {
         error:
-          typeof payload.error === "string"
+          typeof payload?.error === "string"
             ? formatAssemblyAIError(payload.error)
             : "AssemblyAI transcript status request failed",
       },
-      { status: response.status || 502 }
+      { status: response?.status || 502 }
+    );
+  }
+
+  if (!payload) {
+    return NextResponse.json(
+      { error: "AssemblyAI transcript status request failed" },
+      { status: 502 }
     );
   }
 
@@ -76,4 +74,41 @@ export async function GET(req: NextRequest, context: RouteContext) {
         ? formatAssemblyAIError(payload.error)
         : undefined,
   } satisfies AssemblyAITranscriptPayload);
+}
+
+async function fetchTranscriptStatus(
+  apiKey: string,
+  id: string
+): Promise<{
+  response: Response | null;
+  payload: AssemblyAITranscriptResponse | null;
+  error: string | null;
+}> {
+  try {
+    const response = await fetch(`${TRANSCRIPT_URL}/${id}`, {
+      headers: {
+        Authorization: apiKey,
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    const payload = (await response.json().catch(() => ({}))) as
+      | AssemblyAITranscriptResponse
+      | Record<string, unknown>;
+
+    return {
+      response,
+      payload,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      response: null,
+      payload: null,
+      error:
+        error instanceof Error && error.name === "TimeoutError"
+          ? "AssemblyAI transcript status request timed out"
+          : "AssemblyAI transcript service is unavailable",
+    };
+  }
 }

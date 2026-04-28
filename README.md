@@ -172,7 +172,8 @@ With this mode, Compose overrides `LOCAL_TRANSCRIPTION_API_URL` to
 `http://local-stt-worker:8000` for the app container. Do not use
 `127.0.0.1` inside the app container for worker traffic. `.env.local` is
 optional for Compose; values can also be provided through your shell
-environment.
+environment. The app container uses the same Node.js 24 runtime as Vercel and
+GitHub CI.
 
 ```bash
 docker compose -f docker-compose.local.yml up
@@ -225,13 +226,21 @@ YouTube links use live System-audio capture. Paste the link, press `Link`, play
 the embedded clip, share this tab's audio when the browser asks, and watch
 speaker turns appear as AssemblyAI receives the audio.
 
-Direct media URLs such as `.mp4`, `.webm`, `.mp3`, `.wav`, or cloud-storage
-media links are submitted directly to AssemblyAI async transcription with
-`speaker_labels`.
+Direct public HTTPS media URLs such as `.mp4`, `.webm`, `.mp3`, `.wav`, or
+cloud-storage media links are submitted directly to AssemblyAI async
+transcription with `speaker_labels`. The app rejects local network hosts,
+embedded credentials, plain HTTP, and custom-port URLs before submitting them.
 
 Vimeo and article page URLs are not extracted by this app yet. Use System audio
 while those pages play, or add a dedicated extractor later if the product needs
 them.
+
+## Runtime hardening
+
+The Next.js app adds conservative security headers for content sniffing,
+framing, referrers, and browser permissions. AssemblyAI token, submit, and poll
+routes use upstream request timeouts so unavailable services fail quickly
+instead of leaving the UI waiting indefinitely.
 
 ## WhisperX notes
 

@@ -414,6 +414,14 @@ async function installMockAssemblyAIStreaming(page: Page) {
         return processor;
       }
 
+      createGain() {
+        return {
+          gain: { value: 1 },
+          connect: () => undefined,
+          disconnect: () => undefined,
+        };
+      }
+
       close() {
         return Promise.resolve();
       }

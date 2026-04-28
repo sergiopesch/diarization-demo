@@ -1,7 +1,7 @@
 services:
   diarization-demo:
-    image: node:20-bookworm
-    command: sh -lc "npm ci && npm run dev"
+    image: node:24-bookworm
+    command: sh -lc "npm ci --no-audit --no-fund --loglevel=error && npm run dev"
     ports:
       - "3000:3000"
     env_file:

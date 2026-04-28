@@ -1,44 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { isYouTubeUrl } from "@/lib/media-url";
-import { type TranscriptWord } from "@/lib/transcription";
+import {
+  type AssemblyAITranscriptPayload,
+  type AssemblyAITranscriptResponse,
+  formatAssemblyAIError,
+  getAsyncModel,
+  validateMediaUrl,
+} from "@/lib/assemblyai-transcription";
 
 export const runtime = "nodejs";
 
 const TRANSCRIPT_URL = "https://api.assemblyai.com/v2/transcript";
-const MAX_MEDIA_URL_LENGTH = 2048;
+const REQUEST_TIMEOUT_MS = 15_000;
 
 type SubmitTranscriptRequest = {
   audioUrl?: unknown;
   model?: unknown;
-};
-
-type AssemblyAITranscriptResponse = {
-  id?: string;
-  status?: string;
-  error?: string;
-  utterances?: AssemblyAIUtterance[];
-};
-
-type AssemblyAIUtterance = {
-  speaker?: string;
-  text?: string;
-  words?: Array<{
-    text?: string;
-    word?: string;
-    speaker?: string;
-    start?: number;
-    end?: number;
-  }>;
-};
-
-export type AssemblyAITranscriptPayload = {
-  id: string;
-  status: string;
-  provider: "assemblyai";
-  model: string;
-  transcriptionData: TranscriptWord[];
-  error?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -73,33 +51,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const response = await fetch(TRANSCRIPT_URL, {
-    method: "POST",
-    headers: {
-      Authorization: apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      audio_url: audioUrl,
-      speaker_labels: true,
-      language_detection: true,
-      speech_models: [model, "universal-2"],
-    }),
-    cache: "no-store",
-  });
-  const payload = (await response.json().catch(() => ({}))) as
-    | AssemblyAITranscriptResponse
-    | Record<string, unknown>;
+  const { response, payload, error } = await submitAssemblyAITranscript(
+    apiKey,
+    audioUrl,
+    model
+  );
 
-  if (!response.ok || typeof payload.id !== "string") {
+  if (error) {
+    return NextResponse.json({ error }, { status: 502 });
+  }
+
+  if (!response?.ok || typeof payload?.id !== "string") {
     return NextResponse.json(
       {
         error:
-          typeof payload.error === "string"
+          typeof payload?.error === "string"
             ? formatAssemblyAIError(payload.error)
             : "AssemblyAI transcript request failed",
       },
-      { status: response.status || 502 }
+      { status: response?.status || 502 }
     );
   }
 
@@ -112,75 +82,48 @@ export async function POST(req: NextRequest) {
   } satisfies AssemblyAITranscriptPayload);
 }
 
-export function validateMediaUrl(value: string): string | null {
-  if (!value) {
-    return "Enter a public audio or video URL";
-  }
-
-  if (value.length > MAX_MEDIA_URL_LENGTH) {
-    return "Media URL is too long";
-  }
-
+async function submitAssemblyAITranscript(
+  apiKey: string,
+  audioUrl: string,
+  model: string
+): Promise<{
+  response: Response | null;
+  payload: AssemblyAITranscriptResponse | null;
+  error: string | null;
+}> {
   try {
-    const url = new URL(value);
+    const response = await fetch(TRANSCRIPT_URL, {
+      method: "POST",
+      headers: {
+        Authorization: apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        audio_url: audioUrl,
+        speaker_labels: true,
+        language_detection: true,
+        speech_models: [model, "universal-2"],
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    const payload = (await response.json().catch(() => ({}))) as
+      | AssemblyAITranscriptResponse
+      | Record<string, unknown>;
 
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-      return "Media URL must start with http:// or https://";
-    }
-  } catch {
-    return "Enter a valid media URL";
+    return {
+      response,
+      payload,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      response: null,
+      payload: null,
+      error:
+        error instanceof Error && error.name === "TimeoutError"
+          ? "AssemblyAI transcript request timed out"
+          : "AssemblyAI transcript service is unavailable",
+    };
   }
-
-  return null;
-}
-
-export function getAsyncModel(value: unknown): string {
-  return value === "universal-2" ? "universal-2" : "universal-3-pro";
-}
-
-export function formatAssemblyAIError(error: string): string {
-  if (
-    /text\/html/i.test(error) ||
-    /does not appear to contain audio/i.test(error)
-  ) {
-    return "This link points to a web page, not readable audio. Use System audio while it plays, or paste a direct media file URL.";
-  }
-
-  return error;
-}
-
-export function mapAssemblyAIUtterances(
-  utterances: AssemblyAIUtterance[] | undefined
-): TranscriptWord[] {
-  return (utterances ?? []).flatMap((utterance) => {
-    if (utterance.words?.length) {
-      return utterance.words
-        .map((word) => ({
-          word: word.text ?? word.word ?? "",
-          speaker: speakerNumber(word.speaker ?? utterance.speaker),
-          startSeconds:
-            typeof word.start === "number" ? word.start / 1000 : null,
-          endSeconds: typeof word.end === "number" ? word.end / 1000 : null,
-        }))
-        .filter((word) => word.word.trim());
-    }
-
-    return (utterance.text ?? "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((word) => ({
-        word,
-        speaker: speakerNumber(utterance.speaker),
-      }));
-  });
-}
-
-function speakerNumber(label: string | undefined): number {
-  if (!label) {
-    return 0;
-  }
-
-  const firstLetter = label.trim().toUpperCase().charCodeAt(0);
-  return firstLetter >= 65 && firstLetter <= 90 ? firstLetter - 64 : 0;
 }
