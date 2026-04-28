@@ -5,9 +5,31 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      next-stack:
+        patterns:
+          - "next"
+          - "eslint-config-next"
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      test-tooling:
+        patterns:
+          - "@playwright/test"
+          - "vitest"
+      css-tooling:
+        patterns:
+          - "tailwindcss"
+          - "postcss"
+          - "autoprefixer"
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"

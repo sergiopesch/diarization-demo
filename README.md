@@ -33,6 +33,7 @@ That architecture is the lowest-friction way to test different local models with
 Today this repo is in the transition state between a single Google-only demo and a proper backend comparison harness:
 
 - the frontend can select implemented providers and models
+- the browser defaults to `assemblyai`, which is the deployment-safe Vercel mode
 - chunked providers share the same live mic, live system/tab audio, and WebM upload transcription path
 - AssemblyAI live capture streams audio continuously instead of using 6-second chunks
 - detected speakers can be renamed in the transcript view
@@ -108,6 +109,35 @@ ASSEMBLYAI_API_KEY=your_new_key
 
 Apply it to Production, Preview, and Development if you want the same behavior
 across all deployments. Redeploy after adding or rotating the key.
+
+## Vercel Deployment
+
+The Vercel deployment is the hosted Next.js app only. The local WhisperX worker
+does not run on Vercel; keep that worker on Docker/VPS if you need self-hosted
+diarization. AssemblyAI live capture and direct media-link transcription work on
+Vercel with only:
+
+```text
+ASSEMBLYAI_API_KEY=your_new_key
+```
+
+This repository includes `vercel.json` so Vercel uses `npm ci` and
+`npm run build`, and `.vercelignore` so Docker files, docs, local worker code,
+and Playwright artifacts are not uploaded with deployments.
+
+The project targets Node.js `20.x` in `package.json`; `.nvmrc` pins local and CI
+development to Node.js `20.18.1` for reproducible builds.
+
+If you want the Vercel app to call your VPS worker later, add these Vercel
+environment variables too:
+
+```text
+LOCAL_TRANSCRIPTION_API_URL=https://your-domain.example/worker
+LOCAL_WORKER_API_KEY=the-same-worker-secret
+```
+
+Do not add `PYANNOTE_AUTH_TOKEN` to Vercel unless the worker code is running
+there, which this app intentionally avoids.
 
 ## Local development
 

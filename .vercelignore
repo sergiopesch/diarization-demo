@@ -1,0 +1,17 @@
+.github/
+docs/
+local-stt-worker/
+tests/
+
+.env*
+!.env.example
+!.env.production.example
+
+Dockerfile
+Caddyfile
+docker-compose*.yml
+playwright.config.ts
+playwright-report/
+test-results/
+coverage/
+*.tsbuildinfo

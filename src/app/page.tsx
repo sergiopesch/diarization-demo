@@ -181,9 +181,9 @@ const wordsFromTurn = (
 };
 
 export default function Home() {
-  const [provider, setProvider] = useState<TranscriptionProvider>("whisperx");
+  const [provider, setProvider] = useState<TranscriptionProvider>("assemblyai");
   const [model, setModel] = useState(
-    getProviderConfig("whisperx").models[0].value
+    getProviderConfig("assemblyai").models[0].value
   );
   const [captureMode, setCaptureMode] = useState<CaptureMode>("idle");
   const [processingCount, setProcessingCount] = useState(0);

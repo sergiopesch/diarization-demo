@@ -4,11 +4,11 @@ test("renders the minimal live diarization surface", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Live diarization" })).toBeVisible();
-  await expect(page.getByLabel("Backend")).toHaveValue("whisperx");
-  await expect(page.getByLabel("Model")).toHaveValue("tiny.en");
+  await expect(page.getByLabel("Backend")).toHaveValue("assemblyai");
+  await expect(page.getByLabel("Model")).toHaveValue("u3-rt-pro");
   await expect(page.getByRole("button", { name: "System" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mic" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Upload" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Upload" })).toBeDisabled();
   await expect(page.getByText("1. Paste an interview link.")).toBeVisible();
   await expect(page.getByText("2. Or use System/Mic audio.")).toBeVisible();
   await expect(page.getByText("3. Watch speaker turns appear.")).toBeVisible();
@@ -17,6 +17,7 @@ test("renders the minimal live diarization surface", async ({ page }) => {
 
 test("uploads WebM audio and renders a diarized transcript", async ({ page }) => {
   await page.goto("/");
+  await selectBackend(page, "whisperx");
 
   const fileChooserPromise = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Upload" }).click();
@@ -35,6 +36,7 @@ test("uploads WebM audio and renders a diarized transcript", async ({ page }) =>
 
 test("renames detected speakers in the transcript", async ({ page }) => {
   await page.goto("/");
+  await selectBackend(page, "whisperx");
 
   const fileChooserPromise = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Upload" }).click();
@@ -58,6 +60,7 @@ test("rejects unsupported upload formats before calling the API", async ({
   page,
 }) => {
   await page.goto("/");
+  await selectBackend(page, "whisperx");
 
   const fileChooserPromise = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Upload" }).click();
@@ -75,6 +78,7 @@ test("rejects unsupported upload formats before calling the API", async ({
 test("captures microphone audio in live chunks", async ({ page }) => {
   await installMockMediaCapture(page);
   await page.goto("/");
+  await selectBackend(page, "whisperx");
 
   await page.getByRole("button", { name: "Mic" }).click();
 
@@ -89,6 +93,7 @@ test("captures microphone audio in live chunks", async ({ page }) => {
 test("captures shared system audio in live chunks", async ({ page }) => {
   await installMockMediaCapture(page);
   await page.goto("/");
+  await selectBackend(page, "whisperx");
 
   await page.getByRole("button", { name: "System" }).click();
 
@@ -112,7 +117,6 @@ test("streams live AssemblyAI diarization with speaker labels", async ({
   });
   await page.goto("/");
 
-  await selectBackend(page, "assemblyai");
   await expect(page.getByLabel("Model")).toHaveValue("u3-rt-pro");
   await installMockAssemblyAIStreaming(page);
   await page.getByRole("button", { name: "Mic" }).click();
