@@ -61,7 +61,7 @@ Caddyfile                         Optional HTTPS proxy for the production stack
 
 ## Requirements
 
-- Node.js 20.18.1+
+- Node.js 24.x for Vercel/GitHub builds; Node.js 20.9+ also satisfies Next.js 16 locally
 - npm
 - Python 3.11+ if you want to run the local worker outside Docker
 - `ffmpeg` for local WhisperX usage
@@ -121,12 +121,15 @@ Vercel with only:
 ASSEMBLYAI_API_KEY=your_new_key
 ```
 
-This repository includes `vercel.json` so Vercel uses `npm ci` and
-`npm run build`, and `.vercelignore` so Docker files, docs, local worker code,
-and Playwright artifacts are not uploaded with deployments.
+This repository includes `vercel.json` so Vercel uses
+`npm ci --no-audit --no-fund --loglevel=error` and `npm run build`, and
+`.vercelignore` so Docker files, docs, local worker code, and Playwright
+artifacts are not uploaded with deployments.
 
-The project targets Node.js `20.x` in `package.json`; `.nvmrc` pins local and CI
-development to Node.js `20.18.1` for reproducible builds.
+The Vercel project setting controls the production Node.js version. The repo
+does not set `engines.node`, so Vercel will honor the dashboard setting. `.nvmrc`
+pins local and CI development to Node.js `24.14.1` to match the current Vercel
+project setting.
 
 If you want the Vercel app to call your VPS worker later, add these Vercel
 environment variables too:

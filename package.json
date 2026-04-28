@@ -3,10 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "description": "Browser-based speaker diarization demo with pluggable cloud and local backends.",
-  "packageManager": "npm@10.8.2",
-  "engines": {
-    "node": "20.x"
-  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -38,6 +34,7 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "protobufjs": "^7.5.5"
+    "protobufjs": "^7.5.5",
+    "glob": "^13.0.6"
   }
 }
