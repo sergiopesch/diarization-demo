@@ -1,5 +1,7 @@
 # Diarization Demo
 
+![Diarization Demo live speaker diarization interface](docs/assets/readme-hero.png)
+
 A Next.js application that captures live audio, uploads short WebM audio, sends it to `/api/transcribe`, and renders a diarized transcript with per-speaker styling.
 
 The app now supports two execution modes behind the same UI:
