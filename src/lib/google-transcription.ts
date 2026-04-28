@@ -5,13 +5,12 @@ import {
   type TranscriptWord,
 } from "@/lib/transcription";
 
+let speechClient: SpeechClient | null = null;
+
 export async function transcribeWithGoogle(
   request: NormalizedTranscriptionRequest
 ): Promise<{ transcriptionData: TranscriptWord[]; model: string }> {
-  const rawCredentials = process.env.GOOGLE_CLOUD_CREDENTIALS;
-  const client = new SpeechClient(
-    rawCredentials ? { credentials: JSON.parse(rawCredentials) } : undefined
-  );
+  const client = getSpeechClient();
 
   const [response] = await client.recognize({
     audio: { content: request.audioContent },
@@ -43,6 +42,30 @@ export async function transcribeWithGoogle(
     transcriptionData,
     model: request.model ?? "google-speech-default",
   };
+}
+
+function getSpeechClient(): SpeechClient {
+  if (speechClient) {
+    return speechClient;
+  }
+
+  const rawCredentials = process.env.GOOGLE_CLOUD_CREDENTIALS;
+
+  if (!rawCredentials) {
+    speechClient = new SpeechClient();
+    return speechClient;
+  }
+
+  try {
+    speechClient = new SpeechClient({
+      credentials: JSON.parse(rawCredentials),
+    });
+    return speechClient;
+  } catch {
+    throw new Error(
+      "GOOGLE_CLOUD_CREDENTIALS must be valid service-account JSON"
+    );
+  }
 }
 
 function toSeconds(

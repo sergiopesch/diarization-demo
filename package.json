@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Browser-based speaker diarization demo with pluggable cloud and local backends.",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.18.1"
   },
   "scripts": {
     "dev": "next dev",
@@ -12,9 +12,10 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run src/lib",
+    "test:e2e": "playwright test",
     "audit": "npm audit --audit-level=high",
-    "verify": "npm run lint && npm run test && npm run typecheck && npm run build"
+    "verify": "npm run lint && npm run test && npm run typecheck && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "@google-cloud/speech": "^7.3.0",
@@ -25,6 +26,7 @@
     "react-dom": "18.2.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@types/node": "^20.19.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",

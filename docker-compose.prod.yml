@@ -1,0 +1,69 @@
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    profiles:
+      - proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - path: .env.production.example
+        required: false
+      - path: .env.production
+        required: false
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      diarization-demo:
+        condition: service_started
+      local-stt-worker:
+        condition: service_healthy
+
+  diarization-demo:
+    build:
+      context: .
+    restart: unless-stopped
+    env_file:
+      - path: .env.production.example
+        required: false
+      - path: .env.production
+        required: false
+    environment:
+      LOCAL_TRANSCRIPTION_API_URL: http://local-stt-worker:8000
+    expose:
+      - "3000"
+    depends_on:
+      local-stt-worker:
+        condition: service_healthy
+
+  local-stt-worker:
+    build:
+      context: ./local-stt-worker
+    restart: unless-stopped
+    env_file:
+      - path: .env.production.example
+        required: false
+      - path: .env.production
+        required: false
+    environment:
+      HF_HOME: /models/huggingface
+      TORCH_HOME: /models/torch
+      XDG_CACHE_HOME: /models/xdg
+    expose:
+      - "8000"
+    volumes:
+      - local-stt-model-cache:/models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  caddy-data:
+  caddy-config:
+  local-stt-model-cache:

@@ -1,17 +1,22 @@
 import base64
+import binascii
 import os
 import tempfile
+from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="local-stt-worker")
 
+MAX_AUDIO_CONTENT_LENGTH = 10 * 1024 * 1024
+DEFAULT_MAX_AUDIO_BYTES = 8 * 1024 * 1024
+
 
 class TranscriptionRequest(BaseModel):
-    audioContent: str = Field(..., min_length=1)
+    audioContent: str = Field(..., min_length=1, max_length=MAX_AUDIO_CONTENT_LENGTH)
     provider: Literal["whisperx", "parakeet-pyannote", "nemo"]
     model: str | None = None
     languageCode: str = "en-US"
@@ -30,13 +35,78 @@ class TranscriptionResponse(BaseModel):
     model: str
 
 
+class WarmupRequest(BaseModel):
+    model: str | None = None
+    languageCode: str = "en-US"
+
+
+class WarmupResponse(BaseModel):
+    model: str
+    languageCode: str
+    device: str
+    computeType: str
+    asrLoaded: bool
+    alignmentLoaded: bool
+    diarizationLoaded: bool
+
+
 @app.get("/health")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def require_worker_api_key(
+    x_worker_api_key: Annotated[str | None, Header()] = None,
+) -> None:
+    expected_api_key = os.getenv("LOCAL_WORKER_API_KEY")
+
+    if not expected_api_key:
+        return
+
+    if x_worker_api_key != expected_api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing worker API key",
+        )
+
+
+@app.post("/warmup", response_model=WarmupResponse)
+def warmup(
+    request: WarmupRequest,
+    _: Annotated[None, Depends(require_worker_api_key)],
+) -> WarmupResponse:
+    torch, _ = require_whisperx_dependencies()
+    device = get_device(torch)
+    compute_type = get_compute_type(device)
+    model_name = request.model or os.getenv("WHISPERX_MODEL", "tiny.en")
+    language_code = normalize_language_code(request.languageCode)
+
+    get_whisperx_model(model_name, device, compute_type)
+    get_whisperx_alignment_model(language_code, device)
+
+    hf_token = os.getenv("PYANNOTE_AUTH_TOKEN")
+    diarization_loaded = False
+
+    if hf_token:
+        get_whisperx_diarization_pipeline(device, hf_token)
+        diarization_loaded = True
+
+    return WarmupResponse(
+        model=model_name,
+        languageCode=language_code,
+        device=device,
+        computeType=compute_type,
+        asrLoaded=True,
+        alignmentLoaded=True,
+        diarizationLoaded=diarization_loaded,
+    )
+
+
 @app.post("/transcribe", response_model=TranscriptionResponse)
-def transcribe(request: TranscriptionRequest) -> TranscriptionResponse:
+def transcribe(
+    request: TranscriptionRequest,
+    _: Annotated[None, Depends(require_worker_api_key)],
+) -> TranscriptionResponse:
     if request.provider == "whisperx":
         return transcribe_with_whisperx(request)
 
@@ -66,35 +136,33 @@ def transcribe(request: TranscriptionRequest) -> TranscriptionResponse:
 def transcribe_with_whisperx(
     request: TranscriptionRequest,
 ) -> TranscriptionResponse:
-    try:
-        import torch
-        import whisperx
-    except ImportError as exc:
+    torch, whisperx = require_whisperx_dependencies()
+
+    device = get_device(torch)
+    compute_type = get_compute_type(device)
+    model_name = request.model or os.getenv("WHISPERX_MODEL", "tiny.en")
+    hf_token = os.getenv("PYANNOTE_AUTH_TOKEN")
+    language_code = normalize_language_code(request.languageCode)
+
+    if not hf_token:
         raise HTTPException(
             status_code=500,
             detail=(
-                "whisperx dependencies are not installed in the local worker. "
-                "Install local-stt-worker/requirements.txt first."
+                "PYANNOTE_AUTH_TOKEN is required for WhisperX diarization. "
+                "Accept the gated pyannote model terms on Hugging Face, then "
+                "set the token in the worker environment."
             ),
-        ) from exc
-
-    device = os.getenv(
-        "LOCAL_STT_DEVICE",
-        "cuda" if torch.cuda.is_available() else "cpu",
-    )
-    compute_type = "float16" if device == "cuda" else "int8"
-    model_name = request.model or os.getenv("WHISPERX_MODEL", "large-v3-turbo")
-    hf_token = os.getenv("PYANNOTE_AUTH_TOKEN")
+        )
 
     with write_temp_audio(request.audioContent) as audio_path:
         audio = whisperx.load_audio(str(audio_path))
 
-        model = whisperx.load_model(model_name, device, compute_type=compute_type)
-        result = model.transcribe(audio, batch_size=8, language=request.languageCode)
+        model = get_whisperx_model(model_name, device, compute_type)
+        result = model.transcribe(audio, batch_size=8, language=language_code)
 
-        align_model, metadata = whisperx.load_align_model(
-            language_code=result["language"],
-            device=device,
+        align_model, metadata = get_whisperx_alignment_model(
+            result.get("language") or language_code,
+            device,
         )
         aligned_result = whisperx.align(
             result["segments"],
@@ -105,20 +173,7 @@ def transcribe_with_whisperx(
             return_char_alignments=False,
         )
 
-        if not hf_token:
-            raise HTTPException(
-                status_code=500,
-                detail=(
-                    "PYANNOTE_AUTH_TOKEN is required for WhisperX diarization. "
-                    "Accept the gated pyannote model terms on Hugging Face, then "
-                    "set the token in the worker environment."
-                ),
-            )
-
-        diarization_pipeline = whisperx.DiarizationPipeline(
-            token=hf_token,
-            device=device,
-        )
+        diarization_pipeline = get_whisperx_diarization_pipeline(device, hf_token)
         diarize_segments = diarization_pipeline(
             str(audio_path),
             min_speakers=request.speakerCount,
@@ -158,6 +213,60 @@ def transcribe_with_whisperx(
     )
 
 
+def require_whisperx_dependencies():
+    try:
+        import torch
+        import whisperx
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "whisperx dependencies are not installed in the local worker. "
+                "Install local-stt-worker/requirements.txt first."
+            ),
+        ) from exc
+
+    return torch, whisperx
+
+
+def get_device(torch) -> str:
+    return os.getenv(
+        "LOCAL_STT_DEVICE",
+        "cuda" if torch.cuda.is_available() else "cpu",
+    )
+
+
+def get_compute_type(device: str) -> str:
+    return "float16" if device == "cuda" else "int8"
+
+
+@lru_cache(maxsize=4)
+def get_whisperx_model(model_name: str, device: str, compute_type: str):
+    _, whisperx = require_whisperx_dependencies()
+    return whisperx.load_model(model_name, device, compute_type=compute_type)
+
+
+@lru_cache(maxsize=8)
+def get_whisperx_alignment_model(language_code: str, device: str):
+    _, whisperx = require_whisperx_dependencies()
+    return whisperx.load_align_model(language_code=language_code, device=device)
+
+
+@lru_cache(maxsize=2)
+def get_whisperx_diarization_pipeline(device: str, hf_token: str):
+    _, whisperx = require_whisperx_dependencies()
+    return whisperx.DiarizationPipeline(token=hf_token, device=device)
+
+
+def normalize_language_code(language_code: str) -> str:
+    normalized = language_code.strip().lower()
+
+    if not normalized:
+        return "en"
+
+    return normalized.split("-", maxsplit=1)[0]
+
+
 def parse_speaker_number(label: str) -> int:
     suffix = label.rsplit("_", maxsplit=1)[-1]
     return int(suffix) + 1 if suffix.isdigit() else 0
@@ -175,9 +284,41 @@ class TempAudioFile:
 
 
 def write_temp_audio(audio_content: str) -> TempAudioFile:
-    audio_bytes = base64.b64decode(audio_content)
+    try:
+        audio_bytes = base64.b64decode(audio_content, validate=True)
+    except binascii.Error as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="audioContent must be a valid base64 string",
+        ) from exc
+
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="No audio bytes were provided")
+
+    max_audio_bytes = get_max_audio_bytes()
+
+    if len(audio_bytes) > max_audio_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail="Audio payload is too large for synchronous transcription",
+        )
+
     fd, temp_path = tempfile.mkstemp(suffix=".webm")
     os.close(fd)
     path = Path(temp_path)
     path.write_bytes(audio_bytes)
     return TempAudioFile(path)
+
+
+def get_max_audio_bytes() -> int:
+    configured_limit = os.getenv("LOCAL_STT_MAX_AUDIO_BYTES")
+
+    if not configured_limit:
+        return DEFAULT_MAX_AUDIO_BYTES
+
+    try:
+        value = int(configured_limit)
+    except ValueError:
+        return DEFAULT_MAX_AUDIO_BYTES
+
+    return value if value > 0 else DEFAULT_MAX_AUDIO_BYTES

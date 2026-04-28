@@ -1,15 +1,25 @@
 services:
   diarization-demo:
     image: node:20-bookworm
-    command: sh -lc "npm install && npm run dev"
+    command: sh -lc "npm ci && npm run dev"
     ports:
       - "3000:3000"
     env_file:
-      - .env.local
+      - path: .env.local
+        required: false
+    environment:
+      TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-whisperx}
+      LOCAL_TRANSCRIPTION_API_URL: http://local-stt-worker:8000
+      LOCAL_TRANSCRIPTION_TIMEOUT_MS: ${LOCAL_TRANSCRIPTION_TIMEOUT_MS:-600000}
+      LOCAL_WORKER_API_KEY: ${LOCAL_WORKER_API_KEY:-}
+      GOOGLE_CLOUD_CREDENTIALS: ${GOOGLE_CLOUD_CREDENTIALS:-}
     volumes:
       - .:/app
       - /app/node_modules
     working_dir: /app
+    depends_on:
+      local-stt-worker:
+        condition: service_healthy
 
   local-stt-worker:
     build:
@@ -18,5 +28,21 @@ services:
       - "8000:8000"
     environment:
       LOCAL_STT_DEVICE: ${LOCAL_STT_DEVICE:-cpu}
-      WHISPERX_MODEL: ${WHISPERX_MODEL:-large-v3-turbo}
+      WHISPERX_MODEL: ${WHISPERX_MODEL:-tiny.en}
       PYANNOTE_AUTH_TOKEN: ${PYANNOTE_AUTH_TOKEN:-}
+      LOCAL_WORKER_API_KEY: ${LOCAL_WORKER_API_KEY:-}
+      LOCAL_STT_MAX_AUDIO_BYTES: ${LOCAL_STT_MAX_AUDIO_BYTES:-8388608}
+      HF_HOME: /models/huggingface
+      TORCH_HOME: /models/torch
+      XDG_CACHE_HOME: /models/xdg
+    volumes:
+      - local-stt-model-cache:/models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  local-stt-model-cache:

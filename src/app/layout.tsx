@@ -15,7 +15,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Diarization Demo",
   description:
-    "Record audio in the browser and review speaker-separated transcription with Google Cloud Speech.",
+    "Record browser audio and compare speaker diarization across Google Speech and local transcription workers.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "16x16 32x32" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export default function RootLayout({

@@ -2,8 +2,11 @@ export const MAX_AUDIO_CONTENT_LENGTH = 10 * 1024 * 1024;
 export const DEFAULT_LANGUAGE_CODE = "en-US";
 export const DEFAULT_SPEAKER_COUNT = 2;
 export const DEFAULT_TRANSCRIPTION_PROVIDER = "google";
+const BASE64_AUDIO_PATTERN =
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export const SUPPORTED_TRANSCRIPTION_PROVIDERS = [
+  "assemblyai",
   "google",
   "whisperx",
   "parakeet-pyannote",
@@ -41,7 +44,20 @@ export function validateAudioContent(audioContent: unknown): string | null {
     return "Audio payload is too large for synchronous transcription";
   }
 
+  const normalizedAudioContent = normalizeBase64AudioContent(audioContent);
+
+  if (
+    !normalizedAudioContent ||
+    !BASE64_AUDIO_PATTERN.test(normalizedAudioContent)
+  ) {
+    return "audioContent must be a valid base64 string";
+  }
+
   return null;
+}
+
+export function normalizeBase64AudioContent(audioContent: string): string {
+  return audioContent.replace(/\s/g, "");
 }
 
 export function isTranscriptionProvider(
@@ -114,12 +130,15 @@ export function normalizeTranscriptionRequest(
 
   return {
     value: {
-      audioContent: candidate.audioContent as string,
+      audioContent: normalizeBase64AudioContent(candidate.audioContent as string),
       provider: (candidate.provider as TranscriptionProvider) ?? fallbackProvider,
-      model: typeof candidate.model === "string" ? candidate.model : null,
+      model:
+        typeof candidate.model === "string"
+          ? candidate.model.trim() || null
+          : null,
       languageCode:
         typeof candidate.languageCode === "string"
-          ? candidate.languageCode
+          ? candidate.languageCode.trim() || DEFAULT_LANGUAGE_CODE
           : DEFAULT_LANGUAGE_CODE,
       speakerCount:
         typeof candidate.speakerCount === "number"

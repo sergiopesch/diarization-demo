@@ -1,0 +1,15 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	handle_path /worker/* {
+		reverse_proxy local-stt-worker:8000
+	}
+
+	handle {
+		reverse_proxy diarization-demo:3000
+	}
+}

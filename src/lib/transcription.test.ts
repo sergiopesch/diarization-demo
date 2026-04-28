@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_TRANSCRIPTION_PROVIDER,
+  DEFAULT_LANGUAGE_CODE,
   MAX_AUDIO_CONTENT_LENGTH,
   normalizeTranscriptionRequest,
   validateAudioContent,
@@ -19,6 +20,12 @@ describe("validateAudioContent", () => {
   it("rejects oversized audio content", () => {
     expect(validateAudioContent("a".repeat(MAX_AUDIO_CONTENT_LENGTH + 1))).toBe(
       "Audio payload is too large for synchronous transcription"
+    );
+  });
+
+  it("rejects malformed base64 payloads", () => {
+    expect(validateAudioContent("not valid base64")).toBe(
+      "audioContent must be a valid base64 string"
     );
   });
 
@@ -53,6 +60,22 @@ describe("normalizeTranscriptionRequest", () => {
     });
   });
 
+  it("normalizes base64 whitespace and trims optional fields", () => {
+    const { value, error } = normalizeTranscriptionRequest({
+      audioContent: " YX\nVk ",
+      provider: "whisperx",
+      model: " large-v3-turbo ",
+      languageCode: " ",
+    });
+
+    expect(error).toBeNull();
+    expect(value).toMatchObject({
+      audioContent: "YXVk",
+      model: "large-v3-turbo",
+      languageCode: DEFAULT_LANGUAGE_CODE,
+    });
+  });
+
   it("rejects unknown providers", () => {
     const { value, error } = normalizeTranscriptionRequest({
       audioContent: "YXVk",
@@ -61,7 +84,7 @@ describe("normalizeTranscriptionRequest", () => {
 
     expect(value).toBeNull();
     expect(error).toBe(
-      "provider must be one of google, whisperx, parakeet-pyannote, nemo"
+      "provider must be one of assemblyai, google, whisperx, parakeet-pyannote, nemo"
     );
   });
 });

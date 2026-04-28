@@ -10,6 +10,8 @@
 
 # test and coverage output
 /coverage
+/playwright-report
+/test-results
 
 # next.js build output
 /.next
@@ -19,6 +21,7 @@
 # local environment files
 .env*
 !.env.example
+!.env.production.example
 
 # local tooling
 .vercel
@@ -35,6 +38,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*-player-script.js
 
 # typescript cache
 *.tsbuildinfo

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { transcribeWithGoogle } from "@/lib/google-transcription";
-import { transcribeWithLocalService } from "@/lib/local-transcription";
+import {
+  LocalTranscriptionServiceError,
+  transcribeWithLocalService,
+} from "@/lib/local-transcription";
 import {
   DEFAULT_TRANSCRIPTION_PROVIDER,
   type NormalizedTranscriptionRequest,
@@ -19,7 +22,7 @@ const LOCAL_PROVIDERS = new Set<TranscriptionProvider>([
 
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json();
+    const payload = await readJsonBody(req);
     const fallbackProvider = getDefaultProvider();
     const { value, error } = normalizeTranscriptionRequest(
       payload,
@@ -41,11 +44,41 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     console.error("Transcription error:", error);
     const message = error instanceof Error ? error.message : "Unknown transcription error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status =
+      error instanceof LocalTranscriptionServiceError
+        ? error.statusCode
+        : error instanceof RequestBodyError
+          ? error.statusCode
+        : 500;
+
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
+async function readJsonBody(req: NextRequest): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch {
+    throw new RequestBodyError("Request body must be valid JSON");
+  }
+}
+
+class RequestBodyError extends Error {
+  readonly statusCode = 400;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "RequestBodyError";
   }
 }
 
 async function transcribe(request: NormalizedTranscriptionRequest) {
+  if (request.provider === "assemblyai") {
+    throw new RequestBodyError(
+      "AssemblyAI uses the live streaming route; use System or Mic capture."
+    );
+  }
+
   if (request.provider === "google") {
     return transcribeWithGoogle(request);
   }
@@ -63,6 +96,7 @@ function getDefaultProvider(): TranscriptionProvider {
   return configuredProvider === "whisperx" ||
     configuredProvider === "parakeet-pyannote" ||
     configuredProvider === "nemo" ||
+    configuredProvider === "assemblyai" ||
     configuredProvider === "google"
     ? configuredProvider
     : DEFAULT_TRANSCRIPTION_PROVIDER;
