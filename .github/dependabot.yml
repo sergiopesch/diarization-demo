@@ -36,6 +36,15 @@ updates:
         update-types:
           - minor
           - patch
+      dev-tooling:
+        applies-to: version-updates
+        patterns:
+          - "@types/node"
+          - "eslint"
+          - "typescript"
+        update-types:
+          - minor
+          - patch
       css-tooling:
         applies-to: version-updates
         patterns:
@@ -65,6 +74,9 @@ updates:
         update-types:
           - "version-update:semver-major"
       - dependency-name: "@types/react-dom"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "@types/node"
         update-types:
           - "version-update:semver-major"
 
