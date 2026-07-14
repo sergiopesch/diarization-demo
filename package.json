@@ -15,26 +15,30 @@
     "verify": "npm run lint && npm run test && npm run typecheck && npm run build && npm run test:e2e"
   },
   "dependencies": {
-    "@google-cloud/speech": "^7.3.0",
-    "next": "^16.2.4",
+    "@google-cloud/speech": "^7.5.0",
+    "next": "^16.2.10",
     "react": "18.2.0",
     "react-dom": "18.2.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^20.19.0",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "autoprefixer": "^10.5.0",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^16.2.4",
+    "eslint-config-next": "^16.2.10",
     "postcss": "^8.5.12",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.10"
   },
   "overrides": {
-    "protobufjs": "^7.5.5",
+    "@babel/core": "^7.29.7",
+    "@grpc/grpc-js": "^1.14.4",
+    "brace-expansion@^5": "^5.0.7",
+    "js-yaml": "^4.3.0",
+    "protobufjs": "^7.6.5",
     "glob": "^13.0.6",
     "postcss": "^8.5.12",
     "uuid": "^14.0.0"
