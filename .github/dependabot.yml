@@ -6,23 +6,67 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
       next-stack:
+        applies-to: version-updates
         patterns:
           - "next"
           - "eslint-config-next"
+        update-types:
+          - minor
+          - patch
+      react-stack:
+        applies-to: version-updates
+        patterns:
           - "react"
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+        update-types:
+          - minor
+          - patch
       test-tooling:
+        applies-to: version-updates
         patterns:
           - "@playwright/test"
           - "vitest"
+        update-types:
+          - minor
+          - patch
       css-tooling:
+        applies-to: version-updates
         patterns:
           - "tailwindcss"
           - "postcss"
           - "autoprefixer"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "eslint"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "tailwindcss"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "react"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "react-dom"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "@types/react"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "@types/react-dom"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: github-actions
     directory: "/"
