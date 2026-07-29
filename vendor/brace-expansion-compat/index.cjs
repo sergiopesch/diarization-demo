@@ -1,5 +1,6 @@
 'use strict';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Legacy CommonJS is this adapter's purpose.
 const modern = require('brace-expansion-modern');
 
 module.exports = modern.expand;
