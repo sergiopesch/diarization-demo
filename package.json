@@ -37,7 +37,7 @@
   "overrides": {
     "@babel/core": "^7.29.7",
     "@grpc/grpc-js": "^1.14.4",
-    "js-yaml": "^4.3.0",
+    "js-yaml": "^4.3.1",
     "protobufjs": "^7.6.5",
     "glob": "^13.0.6",
     "postcss": "$postcss",
@@ -45,6 +45,7 @@
     "minimatch@3.1.5": {
       "brace-expansion": "$brace-expansion"
     },
+    "nanoid@^3.0.0": "3.3.18",
     "sharp": "0.35.3"
   }
 }
