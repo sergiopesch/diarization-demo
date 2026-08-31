@@ -15,7 +15,7 @@
     "verify": "npm run lint && npm run test && npm run typecheck && npm run build && npm run test:e2e"
   },
   "dependencies": {
-    "@google-cloud/speech": "^7.5.0",
+    "@google-cloud/speech": "^8.0.1",
     "next": "^16.2.12",
     "react": "18.3.1",
     "react-dom": "18.3.1"
