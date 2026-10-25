@@ -1,6 +1,6 @@
 fastapi==0.115.12
 uvicorn[standard]==0.34.2
 pydantic==2.11.4
-python-multipart==0.0.20
+python-multipart==0.0.31
 transformers==4.56.2
 whisperx @ git+https://github.com/m-bain/whisperX.git
